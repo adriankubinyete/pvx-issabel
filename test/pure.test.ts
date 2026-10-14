@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { failureOf, likelyCause, DEFAULT_CAUSE } from "../src/failure.ts";
 import { DEFAULT_OPTIONS, cliLine, generatePassword, jobLine, optionsFromAnswers, readOptions } from "../src/options.ts";
-import { PHASE_IDS, type NetinstallProgress } from "../src/model.ts";
+import { PHASE_IDS, type NetinstallProgress } from "../src/state.ts";
 import { PHASES } from "../src/phases/index.ts";
 import { failPhase, finishPhase, newProgress, overallProgress, prepareResume, startPhase, viewOf } from "../src/progress.ts";
-import { checkLine, statusLines } from "../src/report.ts";
-import { StepError, describeCommand, relevantOutput } from "../src/runtime.ts";
+import { checkLine, statusLines } from "../src/health/summary.ts";
+import { StepError, describeCommand, relevantOutput } from "../src/exec.ts";
 import { isRhelLike, memTotalKb, parseOsRelease, passwdHasUser, systemName, versionMajor, withIpv6Guard, withPhpTimezone, withSelinuxDisabled } from "../src/text-edits.ts";
 
 const reader = (args: Record<string, string | boolean | undefined>) => ({

@@ -3,7 +3,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { jobsConfig, jobsDir } from "@pvx/core";
-import type { NetinstallProgress, RebootPlan } from "../src/model.ts";
+import type { NetinstallProgress, RebootPlan } from "../src/state.ts";
 
 export const FIXTURE = join(import.meta.dir, "fixture");
 export const SQL_SECRET = "SqlSecretPassw0rdXyzAbcd1";

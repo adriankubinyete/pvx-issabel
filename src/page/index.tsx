@@ -4,7 +4,7 @@
 // The Issabel tab: the hub, and the tool it opens. Only `sdk.ui`: no React import.
 // Opening the tab while an install runs lands straight on its live view.
 import type { Sdk } from "@pvx/sdk";
-import { QUERY_PROGRESS, type ProgressView } from "../queries.ts";
+import { QUERY_PROGRESS, type ProgressView } from "../health/queries.ts";
 import { makeHub, type ToolId } from "./Hub.tsx";
 import { makeNetinstall } from "./Netinstall.tsx";
 

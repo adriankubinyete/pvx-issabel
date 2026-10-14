@@ -1,12 +1,12 @@
 // The read-only queries the page (and anything else) asks: the checks one at a time, the central's state, the progress and the
 // credentials of a finished install. They run with the `ReadCtx`: `this` is it.
 import type { ModuleQuery, ReadCtx } from "@pvx/sdk";
-import { parseCredentials, type Credentials } from "./credentials.ts";
-import { JOB_NAME, PROGRESS_KEY, REBOOT_KEY, type NetinstallProgress, type RebootPlan } from "./model.ts";
-import type { JobSnapshot } from "./progress.ts";
-import { readSystemOf, type SystemOverrides } from "./system.ts";
-import { CHECK_IDS, checkOne, issabelPresent, type Check, type CheckId } from "./preflight.ts";
-import { isRhelLike, parseOsRelease, systemName } from "./text-edits.ts";
+import { parseCredentials, type Credentials } from "../credentials.ts";
+import { JOB_NAME, STORE_KEY, type NetinstallProgress, type RebootPlan } from "../state.ts";
+import type { JobSnapshot } from "../progress.ts";
+import { readSystemOf, type SystemOverrides } from "../system.ts";
+import { CHECK_IDS, checkOne, issabelPresent, type Check, type CheckId } from "../preflight.ts";
+import { isRhelLike, parseOsRelease, systemName } from "../text-edits.ts";
 
 export const QUERY_CHECK = "issabel.check";
 export const QUERY_CENTRAL = "issabel.central";
@@ -38,11 +38,11 @@ async function hostnameOf(context: Pick<ReadCtx, "exec">): Promise<string> {
 
 export const progressQuery: ModuleQuery = async function (this: ReadCtx): Promise<ProgressView> {
   const { state, startedAt } = await this.jobs.status(JOB_NAME);
-  return { progress: this.store.get<NetinstallProgress>(PROGRESS_KEY), reboot: this.store.get<RebootPlan>(REBOOT_KEY), job: { state, startedAt } };
+  return { progress: this.store.get<NetinstallProgress>(STORE_KEY.progress), reboot: this.store.get<RebootPlan>(STORE_KEY.reboot), job: { state, startedAt } };
 };
 
 export const credentialsQuery: ModuleQuery = async function (this: ReadCtx): Promise<Credentials | undefined> {
-  const path = this.store.get<NetinstallProgress>(PROGRESS_KEY)?.credentialsFile;
+  const path = this.store.get<NetinstallProgress>(STORE_KEY.progress)?.credentialsFile;
   return path ? parseCredentials(await this.fs.read(path).catch(() => "")) : undefined;
 };
 

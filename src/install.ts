@@ -5,14 +5,14 @@ import { credentialsPath, newCredentials, parseCredentials, saveCredentials } fr
 import { createDnfState } from "./dnf.ts";
 import { toError } from "./errors.ts";
 import { failureOf } from "./failure.ts";
-import { PROGRESS_KEY, REBOOT_KEY, type NetinstallProgress, type PhaseId, type RunOptions } from "./model.ts";
+import { STORE_KEY, type NetinstallProgress, type PhaseId, type RunOptions } from "./state.ts";
 import { PHASES } from "./phases/index.ts";
 import { rebootNow, rebootRequested } from "./phases/reboot.ts";
 import type { InstallPaths, Passwords, PhaseContext } from "./phases/context.ts";
 import { failPhase, finishPhase, isPhaseFinished, newProgress, prepareResume, skipPhase, startPhase } from "./progress.ts";
 import { createProgressStore, type ProgressStore } from "./progress-store.ts";
 import { runPhases, type PhaseHooks, type RunResult } from "./runner.ts";
-import { createShell, type ExecFn, type Say } from "./runtime.ts";
+import { createShell, type ExecFn, type Say } from "./exec.ts";
 
 export interface InstallDeps {
   exec: ExecFn;
@@ -60,7 +60,7 @@ async function prepareFresh(deps: InstallDeps, request: Extract<InstallRequest, 
   const when = new Date(deps.now());
   const credentialsFile = { path: credentialsPath(when, deps.paths.stateDir), data: newCredentials(options, passwords, when) };
   progress.credentialsFile = credentialsFile.path;
-  deps.store.delete(REBOOT_KEY);
+  deps.store.delete(STORE_KEY.reboot);
   await saveCredentials(createShell(deps.exec, deps.say, deps.signal), deps.fs, credentialsFile.path, credentialsFile.data);
   return { progress, passwords, credentialsFile };
 }
@@ -75,7 +75,7 @@ async function prepareResumed(deps: InstallDeps, progress: NetinstallProgress): 
 
 function prepare(deps: InstallDeps, request: InstallRequest): Promise<Prepared> {
   if (request.mode === "fresh") return prepareFresh(deps, request, newProgress(request.options, deps.now()));
-  const saved = deps.store.get<NetinstallProgress>(PROGRESS_KEY);
+  const saved = deps.store.get<NetinstallProgress>(STORE_KEY.progress);
   if (!saved) throw new Error("não há instalação para continuar: rode `issabel netinstall`");
   return prepareResumed(deps, saved);
 }

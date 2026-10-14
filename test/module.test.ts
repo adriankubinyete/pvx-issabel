@@ -8,7 +8,7 @@ import { executeInstall } from "../src/install.ts";
 import { checkOne } from "../src/preflight.ts";
 import { fakeSystem, failing, OPTIONS, PASSWORDS } from "./fake.ts";
 import { FIXTURE } from "./host.ts";
-import { PROGRESS_KEY } from "../src/model.ts";
+import { STORE_KEY } from "../src/state.ts";
 
 const manifest = JSON.parse(readFileSync(join(import.meta.dir, "..", "pvx-module.json"), "utf8")) as { os: string[]; distro: string[]; permissions: { exec: string[]; fs: string[] }; contributes: { commands: string[]; pages: string[]; capabilities: string[] } };
 const proof = { ok: (text: string, extra?: object) => ({ level: "ok" as const, text, ...extra }), warn: (text: string, extra?: object) => ({ level: "warn" as const, text, ...extra }), error: (text: string, extra?: object) => ({ level: "error" as const, text, ...extra }), firstProblem: async (...steps: (() => unknown)[]) => { for (const step of steps) { const result = (await step()) as { level: string } | undefined; if (result && result.level !== "ok") return result; } return undefined; } };
@@ -104,5 +104,5 @@ describe("the commands through the host", () => {
     expect(status.text).toContain("job: none");
     expect(status.text).toContain("nenhuma instalação registrada");
   });
-  test("the progress store key is the one the page reads", () => expect(PROGRESS_KEY).toBe("progress"));
+  test("the progress store key is the one the page reads", () => expect(STORE_KEY.progress).toBe("progress"));
 });

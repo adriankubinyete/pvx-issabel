@@ -1,4 +1,4 @@
-import type { PhaseId } from "../model.ts";
+import type { PhaseId } from "../state.ts";
 import type { Phase } from "../runner.ts";
 import { REMI_PHP_STREAM } from "../packages.ts";
 import { parseOsRelease, versionMajor } from "../text-edits.ts";

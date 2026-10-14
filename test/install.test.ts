@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { executeInstall } from "../src/install.ts";
-import { PROGRESS_KEY, REBOOT_KEY, type NetinstallProgress, type PhaseId } from "../src/model.ts";
+import { STORE_KEY, type NetinstallProgress, type PhaseId } from "../src/state.ts";
 import { fakeSystem, failing, lineOf, OPTIONS, PASSWORDS, type FakeSystem } from "./fake.ts";
 
 const fresh = (system: FakeSystem, options = OPTIONS) => executeInstall(system.deps, { mode: "fresh", options, passwords: PASSWORDS });
-const progressOf = (system: FakeSystem) => system.store.get<NetinstallProgress>(PROGRESS_KEY)!;
+const progressOf = (system: FakeSystem) => system.store.get<NetinstallProgress>(STORE_KEY.progress)!;
 const stateOf = (system: FakeSystem, id: PhaseId) => progressOf(system).phases.find((phase) => phase.id === id)!.state;
 const dnfInstalls = (system: FakeSystem) => system.calls.filter((call) => call.cmd === "dnf" && call.args[0] === "install");
 
@@ -213,7 +213,7 @@ describe("resume", () => {
     expect(await fresh(system)).toMatchObject({ ok: false, failedPhase: "database" });
     const callsBefore = system.calls.length;
     const saved = progressOf(system);
-    const second = fakeSystem({ files: Object.fromEntries(system.fs.files), store: { [PROGRESS_KEY]: saved }, installed: system.installed });
+    const second = fakeSystem({ files: Object.fromEntries(system.fs.files), store: { [STORE_KEY.progress]: saved }, installed: system.installed });
     expect((await executeInstall(second.deps, { mode: "resume" })).ok).toBe(true);
     expect(callsBefore).toBeGreaterThan(second.calls.length);
     for (const early of ["dnf install", "dnf makecache", "setenforce", "systemctl start mariadb", "cp -f"]) expect(second.indexOf(early)).toBe(-1);
@@ -230,7 +230,7 @@ describe("resume", () => {
     const saved = progressOf(system);
     saved.phases.find((phase) => phase.id === "database")!.state = "running";
     saved.error = undefined;
-    const second = fakeSystem({ files: Object.fromEntries(system.fs.files), store: { [PROGRESS_KEY]: saved }, installed: system.installed });
+    const second = fakeSystem({ files: Object.fromEntries(system.fs.files), store: { [STORE_KEY.progress]: saved }, installed: system.installed });
     await executeInstall(second.deps, { mode: "resume" });
     expect(second.indexOf("install_amp")).toBe(0);
   });
@@ -241,7 +241,7 @@ describe("resume", () => {
     const done = progressOf(system).packages.done.length;
     expect(done).toBeGreaterThan(40);
     expect(progressOf(system).packages.failed).toContain("issabel-geoip");
-    const second = fakeSystem({ files: Object.fromEntries(system.fs.files), store: { [PROGRESS_KEY]: progressOf(system) }, installed: system.installed });
+    const second = fakeSystem({ files: Object.fromEntries(system.fs.files), store: { [STORE_KEY.progress]: progressOf(system) }, installed: system.installed });
     await executeInstall(second.deps, { mode: "resume" });
     const { packages } = progressOf(second);
         expect(packages.done.length).toBeGreaterThan(done);
@@ -258,7 +258,7 @@ describe("resume", () => {
   test("without the credentials file it refuses, instead of resetting the passwords", async () => {
     const system = fakeSystem({ rules: [failAt("install_amp")] });
     await fresh(system);
-    const second = fakeSystem({ store: { [PROGRESS_KEY]: progressOf(system) } });
+    const second = fakeSystem({ store: { [STORE_KEY.progress]: progressOf(system) } });
     const outcome = await executeInstall(second.deps, { mode: "resume" });
     expect(outcome.ok).toBe(false);
     expect(second.calls).toHaveLength(0);
@@ -279,8 +279,8 @@ describe("the reboot phase", () => {
     const sleeping = now.deps.sleep;
     now.deps.sleep = async (ms) => {
       await sleeping(ms);
-      const plan = now.store.get<{ at: number; choice: string }>(REBOOT_KEY);
-      if (plan) now.store.set(REBOOT_KEY, { ...plan, choice: "now" });
+      const plan = now.store.get<{ at: number; choice: string }>(STORE_KEY.reboot);
+      if (plan) now.store.set(STORE_KEY.reboot, { ...plan, choice: "now" });
     };
     await fresh(now, withReboot);
     expect(now.lines().at(-1)).toBe("reboot");
@@ -290,8 +290,8 @@ describe("the reboot phase", () => {
     const sleepingToo = postponed.deps.sleep;
     postponed.deps.sleep = async (ms) => {
       await sleepingToo(ms);
-      const plan = postponed.store.get<{ at: number; choice: string }>(REBOOT_KEY);
-      if (plan) postponed.store.set(REBOOT_KEY, { ...plan, choice: "postponed" });
+      const plan = postponed.store.get<{ at: number; choice: string }>(STORE_KEY.reboot);
+      if (plan) postponed.store.set(STORE_KEY.reboot, { ...plan, choice: "postponed" });
     };
     await fresh(postponed, withReboot);
     expect(postponed.lines()).not.toContain("reboot");

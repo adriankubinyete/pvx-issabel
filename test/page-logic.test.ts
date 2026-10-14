@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { newCredentials } from "../src/credentials.ts";
 import { DEFAULT_OPTIONS } from "../src/options.ts";
-import { cellsOf, clock, dateTime, fit, packageDetail, rebootStatus, shareText, stepsOf, verificationSummary } from "../src/ui/format.ts";
+import { clock, dateTime, fit } from "../src/page/layout.ts";
+import { rebootStatus, shareText, verificationSummary } from "../src/page/outcome.ts";
+import { cellsOf, packageDetail, stepsOf } from "../src/page/rows.ts";
 import { donePackages, failedAtDatabase, installing, NOW } from "./samples.ts";
 import { PASSWORDS } from "./fake.ts";
 

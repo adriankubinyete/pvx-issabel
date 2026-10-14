@@ -1,5 +1,5 @@
 import { saveCredentials } from "../credentials.ts";
-import type { PhaseId } from "../model.ts";
+import type { PhaseId } from "../state.ts";
 import type { Phase } from "../runner.ts";
 import { attempt, SHORT_TIMEOUT_MS, type PhaseContext } from "./context.ts";
 

@@ -5,9 +5,9 @@ import { describe, expect, test } from "bun:test";
 import type { ExecResult, ModuleFs } from "@pvx/sdk";
 import { credentialsPath, formatCredentials, newCredentials, parseCredentials, saveCredentials } from "../src/credentials.ts";
 import { executeInstall } from "../src/install.ts";
-import { PROGRESS_KEY, REBOOT_KEY } from "../src/model.ts";
+import { STORE_KEY } from "../src/state.ts";
 import { DEFAULT_OPTIONS, jobLine } from "../src/options.ts";
-import { createShell, type ExecFn } from "../src/runtime.ts";
+import { createShell, type ExecFn } from "../src/exec.ts";
 import { fakeSystem, OPTIONS, PASSWORDS } from "./fake.ts";
 
 describe("the credentials file", () => {
@@ -29,7 +29,7 @@ describe("the credentials file", () => {
   test("the install writes it 0600, lock first, content second, then renames", async () => {
     const system = fakeSystem();
     await executeInstall(system.deps, { mode: "fresh", options: OPTIONS, passwords: PASSWORDS });
-    const path = system.store.get<{ credentialsFile: string }>(PROGRESS_KEY)!.credentialsFile;
+    const path = system.store.get<{ credentialsFile: string }>(STORE_KEY.progress)!.credentialsFile;
     const events = system.fs.events.filter((event) => event.includes(`${path}.partial`) || event === `mv ${path}.partial ${path}`);
     expect(events.slice(0, 4)).toEqual([`write ${path}.partial empty`, `chmod 600 ${path}.partial`, `write ${path}.partial content`, `mv ${path}.partial ${path}`]);
     expect(system.fs.files.has(`${path}.partial`)).toBe(false);
@@ -94,13 +94,13 @@ describe("secrets never leak", () => {
     expect(leaks(jobLine(OPTIONS))).toEqual([]);
     const system = fakeSystem();
     await executeInstall(system.deps, { mode: "fresh", options: { ...OPTIONS, reboot: true }, passwords: PASSWORDS });
-    expect(leaks(JSON.stringify(system.store.get(PROGRESS_KEY)))).toEqual([]);
-    expect(leaks(JSON.stringify(system.store.get(REBOOT_KEY) ?? {}))).toEqual([]);
+    expect(leaks(JSON.stringify(system.store.get(STORE_KEY.progress)))).toEqual([]);
+    expect(leaks(JSON.stringify(system.store.get(STORE_KEY.reboot) ?? {}))).toEqual([]);
   });
   test("not in a failure record", async () => {
     const system = fakeSystem({ rules: [(call) => (call.cmd === "issabel-admin-passwords" ? { code: 1, lines: [`bad password ${PASSWORDS.sql}`] } : undefined)] });
     await executeInstall(system.deps, { mode: "fresh", options: OPTIONS, passwords: PASSWORDS });
-    const error = (system.store.get(PROGRESS_KEY) as { error: { command: string } }).error;
+    const error = (system.store.get(STORE_KEY.progress) as { error: { command: string } }).error;
     expect(error.command).toBe("/usr/bin/issabel-admin-passwords --cli init ***");
   });
 });

@@ -1,7 +1,7 @@
 // Talking to the MariaDB root account without a password on argv. SQL goes in on stdin; a password goes in a 0600 file given to
 // `--defaults-extra-file` (which must be the first option), removed right after.
 import { TEMP_MYSQL_PASSWORD } from "../packages.ts";
-import { StepError, type ShellResult } from "../runtime.ts";
+import { StepError, type ShellResult } from "../exec.ts";
 import { writeSecretFile } from "../secure-file.ts";
 import type { PhaseContext } from "./context.ts";
 

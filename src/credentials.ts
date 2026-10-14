@@ -1,9 +1,9 @@
 // The credentials file: product, date, URL, users and passwords, one `key=value` per line, 0600, in the module state dir.
 // It is the only place the passwords are kept; they never reach argv (except the one tool that takes them there), logs or the store.
 import type { ModuleFs } from "@pvx/sdk";
-import type { RunOptions } from "./model.ts";
+import type { RunOptions } from "./state.ts";
 import { ADDON_LABEL } from "./packages.ts";
-import type { Shell } from "./runtime.ts";
+import type { Shell } from "./exec.ts";
 import { stateDir, writeSecretFileAtomically } from "./secure-file.ts";
 
 export const PRODUCT = "issabel5";

@@ -1,6 +1,6 @@
 // The last phase: the central restarts by itself after a countdown the page shows. `netinstall reboot` (now) and
 // `netinstall postpone` answer it from another process through the `reboot` store key.
-import { REBOOT_KEY, type NetinstallProgress, type PhaseId, type RebootPlan } from "../model.ts";
+import { STORE_KEY, type NetinstallProgress, type PhaseId, type RebootPlan } from "../state.ts";
 import type { Phase } from "../runner.ts";
 import type { PhaseContext } from "./context.ts";
 
@@ -8,7 +8,7 @@ export const REBOOT_DELAY_MS = 60_000;
 export const REBOOTING_DETAIL = "reiniciando";
 const POLL_MS = 1000;
 
-const readPlan = (context: PhaseContext) => context.store.get<RebootPlan>(REBOOT_KEY);
+const readPlan = (context: PhaseContext) => context.store.get<RebootPlan>(STORE_KEY.reboot);
 
 /** Waits for the deadline or for an answer. Returns what was chosen. */
 async function waitForReboot(context: PhaseContext): Promise<RebootPlan["choice"]> {
@@ -25,7 +25,7 @@ export const rebootPhase: Phase<PhaseContext, PhaseId> = {
   label: "reiniciar",
   async run(context) {
     if (!context.options.reboot) return { skipped: "--no-reboot" };
-    context.store.set(REBOOT_KEY, { at: context.now() + REBOOT_DELAY_MS, choice: "wait" } satisfies RebootPlan);
+    context.store.set(STORE_KEY.reboot, { at: context.now() + REBOOT_DELAY_MS, choice: "wait" } satisfies RebootPlan);
     if ((await waitForReboot(context)) === "postponed") {
       context.say.warning("reinício adiado: reinicie a central quando puder");
       return { detail: "adiado" };

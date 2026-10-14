@@ -4,7 +4,7 @@
 import type { ModuleFs, ReadCtx } from "@pvx/sdk";
 import type { InstallPaths } from "./phases/context.ts";
 import { installPaths } from "./paths.ts";
-import type { ExecFn } from "./runtime.ts";
+import type { ExecFn } from "./exec.ts";
 import { sleep } from "./clock.ts";
 
 export interface SystemOverrides {

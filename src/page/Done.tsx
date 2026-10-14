@@ -5,9 +5,10 @@
 // countdown of the restart that the technician can answer.
 import type { SdkUi } from "@pvx/sdk";
 import type { Credentials } from "../credentials.ts";
-import { QUERY_CREDENTIALS } from "../queries.ts";
-import type { NetinstallProgress, RebootPlan } from "../model.ts";
-import { addonSummary, dateTime, MASK, rebootStatus, shareText } from "./format.ts";
+import { QUERY_CREDENTIALS } from "../health/queries.ts";
+import type { NetinstallProgress, RebootPlan } from "../state.ts";
+import { dateTime, MASK } from "./layout.ts";
+import { addonSummary, rebootStatus, shareText } from "./outcome.ts";
 
 const TICK_MS = 1000;
 const COPY_TITLE = "copiado";

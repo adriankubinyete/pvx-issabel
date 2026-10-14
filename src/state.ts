@@ -1,9 +1,10 @@
 // Shapes that are persisted (the module store) or shared between the job and the page. One interface per persisted format.
 
 export const JOB_NAME = "netinstall";
-export const PROGRESS_KEY = "progress";
-/** The reboot plan lives under its own store key: the job writes it and `netinstall reboot` / `postpone` answer it from another process. */
-export const REBOOT_KEY = "reboot";
+
+/** The store keys this module writes. Each one has a type below; nothing else is persisted. The reboot plan has its own key: the job
+ * writes it and `netinstall reboot` / `postpone` answer it from another process. */
+export const STORE_KEY = { progress: "progress", reboot: "reboot" } as const;
 
 export const PHASE_IDS = ["repos", "prepare", "php", "packages", "post", "database", "panel", "timezone", "passwords", "reboot"] as const;
 export type PhaseId = (typeof PHASE_IDS)[number];

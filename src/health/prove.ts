@@ -1,3 +1,4 @@
+import { FIX } from "../texts.ts";
 import type { CapabilityDef, ProofKit, ReadCtx } from "@pvx/sdk";
 
 const ASTERISK_VERSION_TIMEOUT_MS = 5000;
@@ -13,13 +14,13 @@ const issabelVersion = async (ctx: ReadCtx): Promise<string | undefined> => {
 };
 
 export function installedCapability(proof: ProofKit): CapabilityDef {
-  const noAsterisk = async (ctx: ReadCtx) => ((await asteriskVersion(ctx)) ? undefined : proof.warn("o Asterisk não está instalado", { fix: "issabel netinstall" }));
-  const noIssabel = async (ctx: ReadCtx) => ((await ctx.fs.exists("/etc/issabel.conf")) ? undefined : proof.warn("o Issabel não está instalado (sem /etc/issabel.conf)", { fix: "issabel netinstall" }));
+  const noAsterisk = async (ctx: ReadCtx) => ((await asteriskVersion(ctx)) ? undefined : proof.warn("o Asterisk não está instalado", { fix: FIX.netinstall }));
+  const noIssabel = async (ctx: ReadCtx) => ((await ctx.fs.exists("/etc/issabel.conf")) ? undefined : proof.warn("o Issabel não está instalado (sem /etc/issabel.conf)", { fix: FIX.netinstall }));
   return {
     id: "issabel.installed",
     title: "Issabel instalado",
     goal: "A central tem o Asterisk e o Issabel instalados",
-    fix: "issabel netinstall",
+    fix: FIX.netinstall,
     optIn: true,
     prove: async (ctx) => {
       const problem = await proof.firstProblem(() => noAsterisk(ctx), () => noIssabel(ctx));

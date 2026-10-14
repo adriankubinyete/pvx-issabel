@@ -3,10 +3,10 @@ import type { ModuleFs, Store } from "@pvx/sdk";
 import type { Credentials } from "../credentials.ts";
 import type { DnfState } from "../dnf.ts";
 import { applyDnfLine, endDnfRun, recordFailure } from "../dnf.ts";
-import type { RunOptions } from "../model.ts";
+import type { RunOptions } from "../state.ts";
 import type { ProgressStore } from "../progress-store.ts";
-import type { Say, Shell } from "../runtime.ts";
-import { StepError } from "../runtime.ts";
+import type { Say, Shell } from "../exec.ts";
+import { StepError } from "../exec.ts";
 
 export interface InstallPaths {
   /** The module's `assets/` dir (the `.repo` files, `control_panel/`). */

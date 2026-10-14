@@ -1,7 +1,7 @@
 // The operator panel is always installed (owner decision): the bundled files, then three sqlite inserts that register it in the
 // Issabel menu and give group 1 permission. Each insert is guarded by WHERE NOT EXISTS, so a rerun adds nothing twice.
 import { join } from "node:path";
-import type { PhaseId } from "../model.ts";
+import type { PhaseId } from "../state.ts";
 import type { Phase } from "../runner.ts";
 import { attempt, SHORT_TIMEOUT_MS, type PhaseContext } from "./context.ts";
 

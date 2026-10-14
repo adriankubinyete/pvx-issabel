@@ -1,4 +1,4 @@
-import type { PhaseId } from "../model.ts";
+import type { PhaseId } from "../state.ts";
 import type { Phase } from "../runner.ts";
 import type { PhaseContext } from "./context.ts";
 import { MINUTE_MS } from "./context.ts";

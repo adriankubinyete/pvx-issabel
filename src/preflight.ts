@@ -1,6 +1,6 @@
 // The checks that run before an install. Each one is its own function; `runChecks` runs them in order, `checkOne` runs one by id
 // (the page asks for them one at a time so each gets its spinner).
-import type { ExecFn, FsRead } from "./runtime.ts";
+import type { ExecFn, FsRead } from "./exec.ts";
 import { MIN_MEM_KB, MIRROR_PROBE_URL } from "./packages.ts";
 import { isRhelLike, memTotalKb, parseOsRelease, systemName, versionMajor } from "./text-edits.ts";
 

@@ -1,5 +1,5 @@
 // The progress model of an install: building it, moving phases and reading it back as percentages and cells. Pure.
-import { PHASE_IDS, PHASE_WEIGHT, type NetinstallProgress, type NetinstallView, type PackageProgress, type PhaseId, type PhaseRecord, type RunOptions } from "./model.ts";
+import { PHASE_IDS, PHASE_WEIGHT, type NetinstallProgress, type NetinstallView, type PackageProgress, type PhaseId, type PhaseRecord, type RunOptions } from "./state.ts";
 import { emptyPackages } from "./dnf.ts";
 
 export const newProgress = (options: RunOptions, now: number): NetinstallProgress => ({

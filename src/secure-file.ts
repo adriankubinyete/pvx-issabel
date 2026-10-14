@@ -1,7 +1,7 @@
 // A file that holds a secret never exists with a wider mode than 0600, not even for an instant: the empty file is created and
 // locked down first, and only then does the content go in. `ctx.fs.write` keeps the mode of a file that already exists.
 import type { ModuleFs } from "@pvx/sdk";
-import type { Shell } from "./runtime.ts";
+import type { Shell } from "./exec.ts";
 
 const SECRET_MODE = "600";
 

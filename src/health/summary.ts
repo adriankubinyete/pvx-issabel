@@ -1,8 +1,8 @@
 // How the commands say things: the lines of `status` and `check`, built from the progress and the checks. Pure.
 import type { OutLine } from "@pvx/sdk";
-import { CHECK_LABEL, type Check } from "./preflight.ts";
-import { PHASE_LABEL, type NetinstallProgress, type PhaseState } from "./model.ts";
-import { overallProgress } from "./progress.ts";
+import { CHECK_LABEL, type Check } from "../preflight.ts";
+import { PHASE_LABEL, type NetinstallProgress, type PhaseState } from "../state.ts";
+import { overallProgress } from "../progress.ts";
 
 const MARK_BY_STATE: Record<PhaseState, string> = { pending: "○", running: "▸", done: "✓", failed: "✗", skipped: "-" };
 const WORD_BY_STATE: Record<PhaseState, string> = { pending: "pendente", running: "rodando", done: "concluída", failed: "falhou", skipped: "pulada" };

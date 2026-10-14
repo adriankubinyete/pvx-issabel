@@ -1,4 +1,4 @@
-import type { PhaseId } from "../model.ts";
+import type { PhaseId } from "../state.ts";
 import type { Phase } from "../runner.ts";
 import { passwdHasUser, withSelinuxDisabled } from "../text-edits.ts";
 import { attempt, installOrFail, type PhaseContext } from "./context.ts";

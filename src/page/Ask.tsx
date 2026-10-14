@@ -5,10 +5,10 @@
 // in the confirm step (as "(padrão)") and can be edited there. Nothing starts before the [ instalar ] button.
 import type { Question, SdkUi } from "@pvx/sdk";
 import type { Check } from "../preflight.ts";
-import type { RunOptions } from "../model.ts";
+import type { RunOptions } from "../state.ts";
 import { cliLine, DEFAULT_OPTIONS, optionsFromAnswers, passwordOrGenerated } from "../options.ts";
 import { ADDON_KEYS, ADDON_LABEL, DEFAULT_ADDONS } from "../packages.ts";
-import { verificationSummary } from "./format.ts";
+import { verificationSummary } from "./outcome.ts";
 
 export interface Passwords {
   sql: string;

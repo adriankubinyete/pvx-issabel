@@ -5,7 +5,7 @@
 // problem stays here with its cause and the way out.
 import type { SdkUi, StepItem } from "@pvx/sdk";
 import { blockingProblems, CHECK_IDS, CHECK_LABEL, type Check, type CheckId } from "../preflight.ts";
-import { QUERY_CHECK } from "../queries.ts";
+import { QUERY_CHECK } from "../health/queries.ts";
 import { MIRROR_PROBE_URL } from "../packages.ts";
 
 const RUNNING_DETAIL: Partial<Record<CheckId, string>> = { network: `testando ${MIRROR_PROBE_URL.replace("http://", "")}…` };

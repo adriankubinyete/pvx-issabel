@@ -1,7 +1,7 @@
 // What went wrong, in words for the failed screen. Pure.
-import type { FailureInfo, PhaseId } from "./model.ts";
+import type { FailureInfo, PhaseId } from "./state.ts";
 import { messageOf } from "./errors.ts";
-import { StepError } from "./runtime.ts";
+import { StepError } from "./exec.ts";
 
 interface CauseRule {
   pattern: RegExp;

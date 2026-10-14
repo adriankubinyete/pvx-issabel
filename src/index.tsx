@@ -1,11 +1,11 @@
 // pvx module `issabel`: the Issabel hub tab and, first, `netinstall` (Issabel 5 from scratch on Rocky/RHEL 8+).
 // The factory only builds the object: every effect happens inside run(), prove(), a query or the page.
 import type { ModuleFactory } from "@pvx/sdk";
-import { installedCapability } from "./capability.ts";
-import { createCommands } from "./commands.ts";
-import { createQueries } from "./queries.ts";
+import { installedCapability } from "./health/prove.ts";
+import { createCommands } from "./commands/index.ts";
+import { createQueries } from "./health/queries.ts";
 import type { SystemOverrides } from "./system.ts";
-import { issabelPage } from "./ui/page.tsx";
+import { issabelPage } from "./page/index.tsx";
 
 const HUB_TAB_ORDER = 40;
 

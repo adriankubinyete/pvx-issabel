@@ -2,7 +2,7 @@
 // `applyDnfLine` mutates the state it is given (hundreds of lines a second must not copy 180 packages each time) and says
 // whether anything the page shows changed. A `\r` progress redraw arrives as its own line: it only ever (re)marks a package
 // as downloading, never as done.
-import type { PackageProgress, PackageRef, PackageStage } from "./model.ts";
+import type { PackageProgress, PackageRef, PackageStage } from "./state.ts";
 
 type Section = "none" | "table" | "failed";
 

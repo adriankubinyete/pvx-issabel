@@ -1,7 +1,7 @@
 // Keeps the progress in memory and writes it to the module store: at once on a phase change, and at most every
 // `MIN_WRITE_GAP_MS` while dnf lines stream in (a store write rewrites a whole JSON file).
 import type { Store } from "@pvx/sdk";
-import { PROGRESS_KEY, type NetinstallProgress } from "./model.ts";
+import { STORE_KEY, type NetinstallProgress } from "./state.ts";
 
 export const MIN_WRITE_GAP_MS = 500;
 
@@ -16,7 +16,7 @@ export interface ProgressStore {
 export function createProgressStore(store: Store, progress: NetinstallProgress, now: () => number = Date.now): ProgressStore {
   let lastWrite = 0;
   const save = () => {
-    store.set(PROGRESS_KEY, progress);
+    store.set(STORE_KEY.progress, progress);
     lastWrite = now();
   };
   return {

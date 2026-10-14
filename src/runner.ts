@@ -1,7 +1,7 @@
 // A list of named phases run in order, with resume: a phase already finished is skipped. Generic: it knows nothing of Issabel
 // (see the report: a candidate for the SDK, for any installer that works in phases).
 import { messageOf } from "./errors.ts";
-import type { Say } from "./runtime.ts";
+import type { Say } from "./exec.ts";
 
 export interface PhaseOutcome {
   /** A short note kept with the phase ("adiado"). */

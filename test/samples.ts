@@ -1,5 +1,5 @@
 // Progress records a test can inject, shaped like what the job writes.
-import { PHASE_IDS, type NetinstallProgress, type PackageRef, type PhaseId, type PhaseRecord } from "../src/model.ts";
+import { PHASE_IDS, type NetinstallProgress, type PackageRef, type PhaseId, type PhaseRecord } from "../src/state.ts";
 import { DEFAULT_OPTIONS } from "../src/options.ts";
 
 export const NOW = Date.now();

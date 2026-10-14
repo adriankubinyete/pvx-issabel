@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { createJobs, jobsDir, logsDir, readLogs } from "@pvx/core";
 import { runSession, type Session } from "@pvx/testing";
-import { PROGRESS_KEY, type NetinstallProgress } from "../src/model.ts";
+import { STORE_KEY, type NetinstallProgress } from "../src/state.ts";
 import { FIXTURE, restoreHost, SECRETS, SQL_SECRET, stateDirOf, until, useDetachedJobs, WEB_SECRET } from "./host.ts";
 
 let session: Session;
@@ -162,7 +162,7 @@ describe("the job lifecycle: failure, status, resume, stop", () => {
     expect(check.lines.map((line) => line.text.split(":")[0])).toEqual(["root", "sistema", "rede", "memória", "instalação anterior"]);
     expect((await session.run("issabel netinstall reboot", { confirmed: true })).text).toContain("não há reinício agendado");
     expect((await session.run("issabel netinstall postpone")).text).toContain("não há reinício agendado");
-    expect(PROGRESS_KEY).toBe("progress");
+    expect(STORE_KEY.progress).toBe("progress");
   });
 
   test("the reboot countdown is answered from another process: postpone ends the job done, with the phase noted", async () => {

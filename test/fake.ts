@@ -3,8 +3,8 @@
 import type { ExecResult, ModuleFs, Store } from "@pvx/sdk";
 import type { InstallDeps } from "../src/install.ts";
 import { DEFAULT_OPTIONS } from "../src/options.ts";
-import type { RunOptions } from "../src/model.ts";
-import type { Say } from "../src/runtime.ts";
+import type { RunOptions } from "../src/state.ts";
+import type { Say } from "../src/exec.ts";
 import { dnfSuccessLines, type SamplePackage } from "./dnf-sample.ts";
 
 export interface Call {

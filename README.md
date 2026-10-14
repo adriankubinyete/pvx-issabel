@@ -21,6 +21,10 @@ Módulo do pvx com as ferramentas do Issabel. A aba **Issabel** é o índice del
 
 Fases (`src/phases/`): repositórios, preparo, PHP (Remi), pacotes (lote, depois pacote a pacote), pós-instalação, banco, painel do operador, fuso, senhas, reinício. O progresso vai para o store; `resume` pula as fases concluídas e lê as senhas do arquivo de credenciais. A única ferramenta que recebe senha em argv é `issabel-admin-passwords`; o comando aparece mascarado nos logs.
 
+## Estrutura
+
+Segue o modelo do `pvx-firewall`: `src/index.tsx` só liga as peças; `src/commands/<assunto>.ts` (start, run, status, control); `src/health/{prove,queries,summary}.ts`; `src/state.ts` (tipos persistidos e `STORE_KEY`); `src/texts.ts`; `src/exec.ts` (shell sobre `ctx.exec`); `src/phases/` (uma fase por arquivo); `src/page/` (um componente por arquivo, mais `layout.ts`, `rows.ts`, `outcome.ts` puros).
+
 ## Desenvolvimento
 
 Os testes usam o host do pvx clonado ao lado, em `../pvx-opentui` (`tsconfig.json` e `bunfig.toml`). Nenhum teste toca o sistema: o módulo aceita uma máquina falsa (`src/system.ts`) e o job dos testes roda contra ela (`test/fixture`).

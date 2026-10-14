@@ -5,9 +5,9 @@
 // follows the job the host knows (so reopening the page during an install lands on the live view), not a flag kept here.
 import type { SdkUi } from "@pvx/sdk";
 import { messageOf } from "../errors.ts";
-import { JOB_NAME, type NetinstallProgress, type RunOptions } from "../model.ts";
+import { JOB_NAME, type NetinstallProgress, type RunOptions } from "../state.ts";
 import { jobLine } from "../options.ts";
-import { QUERY_CENTRAL, QUERY_PROGRESS, type Central, type ProgressView } from "../queries.ts";
+import { QUERY_CENTRAL, QUERY_PROGRESS, type Central, type ProgressView } from "../health/queries.ts";
 import { isCurrentProgress, viewOf } from "../progress.ts";
 import type { Check } from "../preflight.ts";
 import { makeAsk, type Passwords } from "./Ask.tsx";

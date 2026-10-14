@@ -4,9 +4,10 @@
 // The install while it runs, and where it stopped: the global bar on top, the phases and the last log lines on the left, what is
 // being installed now and the package wall on the right (or, after a failure, the error and the way to continue).
 import type { SdkUi } from "@pvx/sdk";
-import { EXPECTED_INSTALL_MS, PHASE_LABEL, type NetinstallProgress, type RunningPackage } from "../model.ts";
+import { EXPECTED_INSTALL_MS, PHASE_LABEL, type NetinstallProgress, type RunningPackage } from "../state.ts";
 import { overallProgress } from "../progress.ts";
-import { cellsOf, fit, packageDetail, packageTitle, STAGE_WORD, stepsOf } from "./format.ts";
+import { fit } from "./layout.ts";
+import { cellsOf, packageDetail, packageTitle, STAGE_WORD, stepsOf } from "./rows.ts";
 
 const MAX_RUNNING_ROWS = 3;
 const TICK_MS = 1000;

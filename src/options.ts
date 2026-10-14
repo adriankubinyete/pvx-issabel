@@ -1,6 +1,6 @@
 // Reading, checking and writing back the options of an install. Pure: no exec, fs or store.
 import type { ArgSpec, CommandCtx } from "@pvx/sdk";
-import type { AddonKey, AsteriskVersion, RunOptions } from "./model.ts";
+import type { AddonKey, AsteriskVersion, RunOptions } from "./state.ts";
 import { ADDON_KEYS, ASTERISK_VERSIONS, DEFAULT_ADDONS, DEFAULT_ASTVER, DEFAULT_TIMEZONE } from "./packages.ts";
 
 type ArgReader = Pick<CommandCtx, "option" | "flag" | "list">;

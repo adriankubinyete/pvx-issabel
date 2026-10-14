@@ -1,4 +1,4 @@
-import type { PhaseId } from "../model.ts";
+import type { PhaseId } from "../state.ts";
 import type { Phase } from "../runner.ts";
 import { addonPackages, basePackages, PACKAGES_ISSABEL } from "../packages.ts";
 import { attempt, installOrFail, SHORT_TIMEOUT_MS, type PhaseContext } from "./context.ts";

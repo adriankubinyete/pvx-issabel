@@ -1,5 +1,5 @@
 // Package lists of the Issabel 5 install. `$ASTVER` is a literal placeholder, replaced by the chosen Asterisk version.
-import type { AddonKey, AsteriskVersion } from "./model.ts";
+import type { AddonKey, AsteriskVersion } from "./state.ts";
 
 export const MIRROR_PROBE_URL = "http://mirror.issabel.org";
 export const MIN_MEM_KB = 1536 * 1024;

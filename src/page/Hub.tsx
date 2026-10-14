@@ -3,7 +3,7 @@
 /** @jsxFrag Fragment */
 // The Issabel tab: an index of the module's tools, with the state of the central above. Only netinstall is there today.
 import type { ListItem, SdkUi } from "@pvx/sdk";
-import { QUERY_CENTRAL, type Central } from "../queries.ts";
+import { QUERY_CENTRAL, type Central } from "../health/queries.ts";
 
 export type ToolId = "netinstall" | "backups" | "health";
 
