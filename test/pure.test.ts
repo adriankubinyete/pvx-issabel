@@ -1,11 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { failureOf, likelyCause, DEFAULT_CAUSE } from "../src/failure.ts";
+import type { PhasesState } from "@pvx/sdk";
+import { causeOf, commandOf, DEFAULT_CAUSE, likelyCause } from "../src/failure.ts";
 import { DEFAULT_OPTIONS, cliLine, generatePassword, jobLine, optionsFromAnswers, readOptions } from "../src/options.ts";
-import { PHASE_IDS, type NetinstallProgress } from "../src/state.ts";
 import { PHASES } from "../src/phases/index.ts";
-import { failPhase, finishPhase, newProgress, overallProgress, prepareResume, startPhase, viewOf } from "../src/progress.ts";
 import { checkLine, statusLines } from "../src/health/summary.ts";
-import { StepError, describeCommand, relevantOutput } from "../src/exec.ts";
+import { isInstalled } from "../src/page/outcome.ts";
 import { isRhelLike, memTotalKb, parseOsRelease, passwdHasUser, systemName, versionMajor, withIpv6Guard, withPhpTimezone, withSelinuxDisabled } from "../src/text-edits.ts";
 
 const reader = (args: Record<string, string | boolean | undefined>) => ({
@@ -84,68 +83,46 @@ describe("failure", () => {
     expect(likelyCause(["write error: No space left on device"])).toContain("disco");
     expect(likelyCause(["boom"])).toBe(DEFAULT_CAUSE);
   });
-  test("a StepError becomes the failure record; any other error keeps its message", () => {
-    expect(failureOf("database", new StepError("x", "install_amp --installdb", 1, ["Access denied for user 'root'"]))).toMatchObject({ phase: "database", command: "install_amp --installdb", code: 1 });
-    expect(failureOf("repos", new Error("boom"))).toMatchObject({ command: "boom", output: [], cause: DEFAULT_CAUSE });
-  });
-  test("the shown command is cut and the shown output prefers error lines", () => {
-    expect(describeCommand("dnf", ["install", "-y", ...Array(60).fill("package")]).length).toBeLessThanOrEqual(110);
-    expect(relevantOutput(["a", "b", "Error: bad thing", "c"])).toEqual(["Error: bad thing"]);
-    expect(relevantOutput(["a", "b"])).toEqual(["a", "b"]);
+  test("a recorded failure shows its command, or its message when no command ran", () => {
+    const stepFailure = { phase: "database", message: "x", command: "install_amp --installdb", code: 1, output: ["Access denied for user 'root'"] };
+    expect(commandOf(stepFailure)).toBe("install_amp --installdb");
+    expect(causeOf(stepFailure)).toContain("senha do MySQL");
+    expect(commandOf({ phase: "repos", message: "boom" })).toBe("boom");
+    expect(causeOf({ phase: "repos", message: "boom" })).toBe(DEFAULT_CAUSE);
   });
 });
 
-describe("the progress model", () => {
-  const started = () => newProgress(DEFAULT_OPTIONS, 1000);
-  test("the phases of the model are the phases the install runs, in order", () => {
-    expect(PHASES.map((phase) => phase.id)).toEqual([...PHASE_IDS]);
-    expect(started().phases.map((phase) => phase.id)).toEqual([...PHASE_IDS]);
+const PHASE_IDS = ["repos", "prepare", "php", "packages", "post", "database", "panel", "timezone", "passwords", "reboot"];
+
+const stateOf = (states: Record<string, PhasesState["phases"][number]["state"]>): PhasesState => ({
+  phases: PHASE_IDS.map((id) => ({ id, label: id, weight: 1, state: states[id] ?? "pending" })),
+  startedAt: 1000,
+  runStartedAt: 1000,
+});
+
+describe("the install phases", () => {
+  test("they run in this order, and the reboot is the last", () => {
+    expect(PHASES.map((phase) => phase.id)).toEqual(PHASE_IDS);
   });
-  test("the global value follows the weights and the package count", () => {
-    const progress = started();
-    expect(overallProgress(progress)).toBe(0);
-    for (const id of ["repos", "prepare", "php"] as const) finishPhase(progress, id, 2000);
-    startPhase(progress, "packages", 2000);
-    progress.packages.total = 100;
-    progress.packages.done = Array.from({ length: 50 }, (_, i) => ({ name: `p${i}`, version: "1" }));
-    expect(overallProgress(progress)).toBeCloseTo((4 + 1 + 3 + 35) / 100, 5);
+  test("it is installed when everything but the restart is finished, even while the countdown runs", () => {
+    const done = Object.fromEntries(PHASE_IDS.filter((id) => id !== "reboot").map((id) => [id, "done" as const]));
+    expect(isInstalled(stateOf({ ...done, reboot: "running" }))).toBe(true);
+    expect(isInstalled(stateOf({ ...done, passwords: "running" }))).toBe(false);
+    expect(isInstalled(stateOf({}))).toBe(false);
   });
-  test("a failed phase keeps the credit earned", () => {
-    const progress = started();
-    for (const id of ["repos", "prepare"] as const) finishPhase(progress, id, 2000);
-    failPhase(progress, "php", 3000, { phase: "php", command: "x", output: [], cause: "y" });
-    expect(overallProgress(progress)).toBeCloseTo(5 / 100, 5);
+});
+
+describe("status and check lines", () => {
+  test("the phases, the packages and where it failed", () => {
+    const state = { ...stateOf({ repos: "done", prepare: "failed" }), failure: { phase: "prepare", message: "x", command: "groupadd", output: [] } };
+    const lines = statusLines(state, { total: 3, done: [], running: [], failed: ["a"] }, undefined);
+    expect(lines[0]).toBe("✓ repos: concluída");
+    expect(lines[1]).toBe("✗ prepare: falhou");
+    expect(lines).toContain("pacotes: 0/3 instalados, 1 com falha");
+    expect(lines).toContain("erro em prepare: groupadd");
+    expect(lines.join("\n")).toContain("causa provável: ");
   });
-  test("the view: running, failed, done (even after the job went away at the reboot)", () => {
-    const progress = started();
-    expect(viewOf(progress, "running")).toBe("running");
-    expect(viewOf(progress, "stopped")).toBe("failed");
-    expect(viewOf(progress, "failed")).toBe("failed");
-    failPhase(progress, "repos", 2000, { phase: "repos", command: "x", output: [], cause: "y" });
-    expect(viewOf(progress, "running")).toBe("failed");
-    const finished = started();
-    for (const id of PHASE_IDS.filter((phase) => phase !== "reboot")) finishPhase(finished, id, 2000);
-    expect(viewOf(finished, "failed")).toBe("done");
-    expect(viewOf(finished, "none")).toBe("done");
-  });
-  test("a resume sends running and failed phases back to pending and clears the live package state", () => {
-    const progress = started();
-    finishPhase(progress, "repos", 2000);
-    startPhase(progress, "prepare", 2000);
-    progress.packages.running = [{ name: "a", version: "1", stage: "installing" }];
-    prepareResume(progress, 5000);
-    expect(progress.runStartedAt).toBe(5000);
-    expect(progress.phases.map((phase) => phase.state).slice(0, 3)).toEqual(["done", "pending", "pending"]);
-    expect(progress.packages.running).toEqual([]);
-  });
-  test("status and check lines", () => {
-    const progress: NetinstallProgress = started();
-    finishPhase(progress, "repos", 2000);
-    failPhase(progress, "prepare", 3000, { phase: "prepare", command: "groupadd", output: [], cause: "causa" });
-    const lines = statusLines(progress);
-    expect(lines[0]).toBe("✓ repositórios: concluída");
-    expect(lines[1]).toBe("✗ preparo do sistema: falhou");
-    expect(lines.join("\n")).toContain("causa provável: causa");
+  test("a check as a line of output", () => {
     expect(checkLine({ id: "memory", level: "warn", detail: "RAM+swap 1.4 G", message: "baixa" })).toEqual({ kind: "warning", text: "memória: RAM+swap 1.4 G: baixa" });
     expect(checkLine({ id: "root", level: "ok" })).toEqual({ kind: "success", text: "root" });
   });

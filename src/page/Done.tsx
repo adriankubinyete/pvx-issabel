@@ -3,10 +3,10 @@
 /** @jsxFrag Fragment */
 // The end: where to open Issabel and with which passwords (hidden until asked), the copy of everything for a ticket, and the
 // countdown of the restart that the technician can answer.
-import type { SdkUi } from "@pvx/sdk";
+import type { PackageProgress, PhasesState, SdkUi } from "@pvx/sdk";
 import type { Credentials } from "../credentials.ts";
 import { QUERY_CREDENTIALS } from "../health/queries.ts";
-import type { NetinstallProgress, RebootPlan } from "../state.ts";
+import type { InstallState, RebootPlan } from "../state.ts";
 import { dateTime, MASK } from "./layout.ts";
 import { addonSummary, rebootStatus, shareText } from "./outcome.ts";
 
@@ -16,7 +16,9 @@ const REBOOT_COMMAND = "issabel netinstall reboot";
 const POSTPONE_COMMAND = "issabel netinstall postpone";
 
 export interface DoneProps {
-  progress: NetinstallProgress;
+  state: PhasesState;
+  install: InstallState;
+  packages: PackageProgress;
   reboot?: RebootPlan;
   hostname: string;
   onExit: () => void;
@@ -24,7 +26,7 @@ export interface DoneProps {
 }
 
 export const makeDone = (ui: SdkUi) => {
-  const { h, Panel, Row: Side, Text, Button, Loading, useState, useEffect, useQuery, useKey, useBack, useCopy, useCommand, useNudge } = ui;
+  const { h, Panel, Row: Side, Text, Notice, Button, Loading, useState, useEffect, useQuery, useKey, useBack, useCopy, useCommand, useNudge } = ui;
 
   function useNow(): number {
     const [now, setNow] = useState(Date.now());
@@ -46,7 +48,7 @@ export const makeDone = (ui: SdkUi) => {
     return <Text tone={tone}>{`${label.padEnd(14)}${value}`}</Text>;
   }
 
-  return function Done({ progress, reboot, hostname, onExit, onNew }: DoneProps) {
+  return function Done({ state, install, packages, reboot, hostname, onExit, onNew }: DoneProps) {
     const now = useNow();
     const copy = useCopy();
     const nudge = useNudge();
@@ -58,10 +60,10 @@ export const makeDone = (ui: SdkUi) => {
 
     const credentials = credentialsQuery.data;
     if (!credentials) return <Loading label="lendo as credenciais…" />;
-    const status = rebootStatus(reboot, progress.options.reboot, now);
+    const status = rebootStatus(reboot, install.options.reboot, now);
 
     const copyEverything = () =>
-      void copy(shareText({ hostname, credentials, installedAt: progress.phases.find((phase) => phase.id === "passwords")?.endedAt ?? now, reboot, rebootSkipped: !progress.options.reboot }), { title: COPY_TITLE });
+      void copy(shareText({ hostname, credentials, installedAt: state.phases.find((phase) => phase.id === "passwords")?.endedAt ?? now, reboot, rebootSkipped: !install.options.reboot }), { title: COPY_TITLE });
     const answer = async (command: typeof reboots) => {
       const run = await command.run();
       nudge(run.lines.at(-1)?.text);
@@ -71,14 +73,14 @@ export const makeDone = (ui: SdkUi) => {
     return (
       <Panel>
         <Keys revealed={revealed} onReveal={() => setRevealed(!revealed)} onCopy={copyEverything} onNew={onNew} />
-        <Text tone="ok" bold>{`✓ Issabel 5 instalado   Asterisk ${credentials.asterisk} · ${progress.packages.done.length} pacotes · painel do operador`}</Text>
-        <Text tone="dim">{`${dateTime(progress.startedAt)} · extras: ${addonSummary(progress.options.addpkgs)}`}</Text>
+        <Notice level="ok">{`Issabel 5 instalado   Asterisk ${credentials.asterisk} · ${packages.done.length} pacotes · painel do operador`}</Notice>
+        <Text tone="dim">{`${dateTime(state.startedAt)} · extras: ${addonSummary(install.options.addpkgs)}`}</Text>
         <Text> </Text>
         <Field label="acesso" value={credentials.url ?? "—"} />
         <Field label="usuário web" value={credentials.webUser} />
         <Field label="senha web" value={shown(credentials.webPassword)} />
         <Field label="MySQL root" value={shown(credentials.mysqlPassword)} />
-        <Field label="cópia em" value={`${progress.credentialsFile ?? "—"} (0600)`} tone="dim" />
+        <Field label="cópia em" value={`${install.credentialsFile ?? "—"} (0600)`} tone="dim" />
         <Text> </Text>
         {status.canAnswer ? (
           <Side>

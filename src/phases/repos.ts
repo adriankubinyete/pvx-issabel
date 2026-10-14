@@ -1,8 +1,6 @@
 import { join } from "node:path";
-import type { PhaseId } from "../state.ts";
-import type { Phase } from "../runner.ts";
 import { IPV6_GUARD_LINE, withIpv6Guard } from "../text-edits.ts";
-import { attempt, installOrFail, SHORT_TIMEOUT_MS, type PhaseContext } from "./context.ts";
+import { attempt, installOrFail, SHORT_TIMEOUT_MS, type PhaseContext, type InstallPhase } from "./context.ts";
 
 const SYSCTL_FILE = "/etc/sysctl.conf";
 const YUM_REPOS_DIR = "/etc/yum.repos.d/";
@@ -23,9 +21,10 @@ async function guardIpv6(context: PhaseContext): Promise<void> {
 const copyRepoFiles = (context: PhaseContext) =>
   context.shell.must("cp", ["-f", ...REPO_FILES.map((file) => join(context.paths.assets, "repos", file)), YUM_REPOS_DIR]);
 
-export const reposPhase: Phase<PhaseContext, PhaseId> = {
+export const reposPhase: InstallPhase = {
   id: "repos",
   label: "repositórios",
+  weight: 4,
   async run(context) {
     await installOrFail(context, ["epel-release"]);
     await refreshMetadata(context);

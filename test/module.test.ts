@@ -1,18 +1,16 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
-import type { ModuleDef, ReadCtx, Sdk } from "@pvx/sdk";
-import { runSession } from "@pvx/testing";
-import { makeFactory } from "../src/index.tsx";
+import type { ModuleDef } from "@pvx/sdk";
+import { fakeReadCtx, fakeSdk, runSession } from "@pvx/testing";
+import factory from "../src/index.tsx";
 import { executeInstall } from "../src/install.ts";
 import { checkOne } from "../src/preflight.ts";
 import { fakeSystem, failing, OPTIONS, PASSWORDS } from "./fake.ts";
 import { FIXTURE } from "./host.ts";
-import { STORE_KEY } from "../src/state.ts";
 
 const manifest = JSON.parse(readFileSync(join(import.meta.dir, "..", "pvx-module.json"), "utf8")) as { os: string[]; distro: string[]; permissions: { exec: string[]; fs: string[] }; contributes: { commands: string[]; pages: string[]; capabilities: string[] } };
-const proof = { ok: (text: string, extra?: object) => ({ level: "ok" as const, text, ...extra }), warn: (text: string, extra?: object) => ({ level: "warn" as const, text, ...extra }), error: (text: string, extra?: object) => ({ level: "error" as const, text, ...extra }), firstProblem: async (...steps: (() => unknown)[]) => { for (const step of steps) { const result = (await step()) as { level: string } | undefined; if (result && result.level !== "ok") return result; } return undefined; } };
-const build = (): ModuleDef => makeFactory()({ version: 1, ui: {} as Sdk["ui"], proof: proof as Sdk["proof"], fs: {} as Sdk["fs"], log: { debug() {}, info() {}, warn() {}, error() {} } });
+const build = (): ModuleDef => factory(fakeSdk());
 const baseName = (path: string) => path.split("/").pop()!;
 
 describe("the manifest", () => {
@@ -26,7 +24,7 @@ describe("the manifest", () => {
   test("it lists exactly what the module runs: every program a scenario ran is allowed, and every allowed one ran", async () => {
     const used = new Set<string>();
     const run = async (system: ReturnType<typeof fakeSystem>, options = OPTIONS) => {
-      await executeInstall(system.deps, { mode: "fresh", options, passwords: PASSWORDS });
+      await executeInstall(system.ctx, system.env, { mode: "fresh", options, passwords: PASSWORDS });
       system.calls.forEach((call) => used.add(call.cmd));
     };
     await run(fakeSystem({ files: { "/usr/local/fop2/create_fop2_manager_user.pl": "x" } }), { ...OPTIONS, reboot: true });
@@ -38,7 +36,7 @@ describe("the manifest", () => {
     const def = build();
     const capability = def.capabilities!.find((entry) => entry.id === "issabel.installed")!;
     const readOnly = fakeSystem({ files: { "/etc/issabel.conf": "x" } });
-    await capability.prove({ log: console as never, store: { get: () => undefined }, query: () => undefined, exec: readOnly.exec, fs: readOnly.fs, jobs: {} as ReadCtx["jobs"] });
+    await capability.prove(fakeReadCtx(readOnly));
     readOnly.calls.forEach((call) => used.add(call.cmd));
     used.add(baseName("hostname")); // the central query (covered by the page tests)
     const allowed = new Set(manifest.permissions.exec);
@@ -76,7 +74,7 @@ describe("the capability issabel.installed", () => {
   const prove = async (options: Parameters<typeof fakeSystem>[0]) => {
     const system = fakeSystem(options);
     const capability = build().capabilities!.find((entry) => entry.id === "issabel.installed")!;
-    return capability.prove({ log: console as never, store: { get: () => undefined }, query: () => undefined, exec: system.exec, fs: system.fs, jobs: {} as ReadCtx["jobs"] });
+    return capability.prove(fakeReadCtx(system));
   };
 
   test("warns without asterisk, and without /etc/issabel.conf", async () => {
@@ -104,5 +102,4 @@ describe("the commands through the host", () => {
     expect(status.text).toContain("job: none");
     expect(status.text).toContain("nenhuma instalação registrada");
   });
-  test("the progress store key is the one the page reads", () => expect(STORE_KEY.progress).toBe("progress"));
 });

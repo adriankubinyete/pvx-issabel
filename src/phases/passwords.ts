@@ -1,7 +1,5 @@
 import { saveCredentials } from "../credentials.ts";
-import type { PhaseId } from "../state.ts";
-import type { Phase } from "../runner.ts";
-import { attempt, SHORT_TIMEOUT_MS, type PhaseContext } from "./context.ts";
+import { attempt, SHORT_TIMEOUT_MS, type PhaseContext, type InstallPhase } from "./context.ts";
 
 const ADMIN_PASSWORDS = "/usr/bin/issabel-admin-passwords";
 const FOP2_MANAGER_SCRIPT = "/usr/local/fop2/create_fop2_manager_user.pl";
@@ -32,12 +30,13 @@ async function accessUrl(context: PhaseContext): Promise<string> {
 async function completeCredentials(context: PhaseContext): Promise<void> {
   const { credentials } = context;
   credentials.data.url = await accessUrl(context);
-  await saveCredentials(context.shell, context.fs, credentials.path, credentials.data);
+  await saveCredentials(context.fs, credentials.path, credentials.data);
 }
 
-export const passwordsPhase: Phase<PhaseContext, PhaseId> = {
+export const passwordsPhase: InstallPhase = {
   id: "passwords",
   label: "senhas",
+  weight: 5,
   async run(context) {
     await setAdminPasswords(context);
     await syncFop2Manager(context);

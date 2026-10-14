@@ -3,8 +3,10 @@
 import type { ModuleFs } from "@pvx/sdk";
 import type { RunOptions } from "./state.ts";
 import { ADDON_LABEL } from "./packages.ts";
-import type { Shell } from "./exec.ts";
-import { stateDir, writeSecretFileAtomically } from "./secure-file.ts";
+import { stateDir } from "./paths.ts";
+
+/** A file that holds a secret is created with this mode (`ctx.fs.write` locks it before the content goes in). */
+export const SECRET_MODE = 0o600;
 
 export const PRODUCT = "issabel5";
 export const WEB_USER = "admin";
@@ -79,4 +81,5 @@ const stamp = (now: Date) => now.toISOString().replace(/[-:]/g, "").slice(0, 13)
 
 export const credentialsPath = (now: Date, dir = stateDir()) => `${dir}/credenciais-${stamp(now)}.txt`;
 
-export const saveCredentials = (shell: Shell, fs: ModuleFs, path: string, credentials: Credentials) => writeSecretFileAtomically(shell, fs, path, formatCredentials(credentials));
+/** Written beside the final path and renamed over it: a reader sees the old file or the new one whole, always 0600. */
+export const saveCredentials = (fs: ModuleFs, path: string, credentials: Credentials) => fs.write(path, formatCredentials(credentials), { mode: SECRET_MODE, atomic: true });

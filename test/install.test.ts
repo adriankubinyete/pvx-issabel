@@ -1,11 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import { executeInstall } from "../src/install.ts";
-import { STORE_KEY, type NetinstallProgress, type PhaseId } from "../src/state.ts";
+import type { PackageProgress, PhasesState } from "@pvx/sdk";
+import { causeOf } from "../src/failure.ts";
+import { JOB_NAME, STORE_KEY } from "../src/state.ts";
 import { fakeSystem, failing, lineOf, OPTIONS, PASSWORDS, type FakeSystem } from "./fake.ts";
 
-const fresh = (system: FakeSystem, options = OPTIONS) => executeInstall(system.deps, { mode: "fresh", options, passwords: PASSWORDS });
-const progressOf = (system: FakeSystem) => system.store.get<NetinstallProgress>(STORE_KEY.progress)!;
-const stateOf = (system: FakeSystem, id: PhaseId) => progressOf(system).phases.find((phase) => phase.id === id)!.state;
+const PHASES_KEY = `phases:${JOB_NAME}`;
+const fresh = (system: FakeSystem, options = OPTIONS) => executeInstall(system.ctx, system.env, { mode: "fresh", options, passwords: PASSWORDS });
+const resume = (system: FakeSystem) => executeInstall(system.ctx, system.env, { mode: "resume" });
+const phasesOf = (system: FakeSystem) => system.store.get<PhasesState>(PHASES_KEY)!;
+const packagesOf = (system: FakeSystem) => system.store.get<PackageProgress>(STORE_KEY.packages)!;
+const stateOf = (system: FakeSystem, id: string) => phasesOf(system).phases.find((phase) => phase.id === id)!.state;
+const said = (system: FakeSystem, kind: string, text: string) => system.ctx.lines.some((line) => line.kind === kind && line.text.includes(text));
 const dnfInstalls = (system: FakeSystem) => system.calls.filter((call) => call.cmd === "dnf" && call.args[0] === "install");
 
 describe("a clean install", () => {
@@ -16,7 +22,7 @@ describe("a clean install", () => {
     const positions = order.map((prefix) => system.indexOf(prefix));
     expect(positions.every((position) => position >= 0)).toBe(true);
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
-    expect(progressOf(system).phases.map((phase) => phase.state)).toEqual(["done", "done", "done", "done", "done", "done", "done", "done", "done", "skipped"]);
+    expect(phasesOf(system).phases.map((phase) => phase.state)).toEqual(["done", "done", "done", "done", "done", "done", "done", "done", "done", "skipped"]);
   });
 
   test("the Asterisk version and the extras reach the dnf batches", async () => {
@@ -48,7 +54,7 @@ describe("a clean install", () => {
   test("the package progress counts every transaction", async () => {
     const system = fakeSystem();
     await fresh(system);
-    const { packages } = progressOf(system);
+    const packages = packagesOf(system);
     expect(packages.done.length).toBeGreaterThan(50);
     expect(packages.total).toBe(packages.done.length);
     expect(packages.failed).toEqual([]);
@@ -85,7 +91,7 @@ describe("guards: a rerun changes nothing it does not have to", () => {
   test("the ipv6 guard is appended once and sysctl.conf is not rewritten when it is there", async () => {
     const present = fakeSystem({ files: { "/etc/sysctl.conf": "net.ipv6.conf.all.disable_ipv6 = 1\n" } });
     await fresh(present);
-    expect(present.fs.writes).not.toContain("/etc/sysctl.conf");
+    expect(present.writes.map((write) => write.path)).not.toContain("/etc/sysctl.conf");
     const missing = fakeSystem({ files: { "/etc/sysctl.conf": "vm.swappiness = 10\n" } });
     await fresh(missing);
     expect(missing.fs.files.get("/etc/sysctl.conf")).toBe("vm.swappiness = 10\nnet.ipv6.conf.all.disable_ipv6 = 1\n");
@@ -122,7 +128,7 @@ describe("guards: a rerun changes nothing it does not have to", () => {
     expect(mysqlCalls[1]!.args[0]).toStartWith("--defaults-extra-file=");
     expect(mysqlCalls[1]!.stdin).toContain("PASSWORD('')");
     expect(mysqlCalls.flatMap((call) => call.args).join(" ")).not.toContain("iSsAbEl");
-    expect(system.fs.events).toContain("chmod 600 /state/mysql-root.cnf");
+    expect(system.fs.modes.get("/state/mysql-root.cnf")).toBe(0o600);
     expect(system.fs.files.has("/state/mysql-root.cnf")).toBe(false);
   });
   test("a rerun of post finds the temporary password already set, and the root password already empty", async () => {
@@ -143,12 +149,12 @@ describe("fatal versus warning", () => {
   test("a failing makecache is a warning", async () => {
     const system = fakeSystem({ rules: [failing((call) => lineOf(call) === "dnf makecache")] });
     expect((await fresh(system)).ok).toBe(true);
-    expect(system.say.lines.some((line) => line.level === "warning" && line.text.includes("dnf makecache"))).toBe(true);
+    expect(said(system, "warning", "dnf makecache")).toBe(true);
   });
   test("sqlite failures only warn: the panel files are there", async () => {
     const system = fakeSystem({ rules: [failing((call) => call.cmd === "sqlite3")] });
     expect((await fresh(system)).ok).toBe(true);
-    expect(system.say.lines.filter((line) => line.level === "warning").length).toBeGreaterThanOrEqual(3);
+    expect(system.ctx.lines.filter((line) => line.kind === "warning").length).toBeGreaterThanOrEqual(3);
   });
   test("a failing install_amp stops the install at the database phase", async () => {
     const system = fakeSystem({ rules: [failing((call) => call.cmd === "install_amp", { code: 1, lines: ["ERROR 1045 (28000): Access denied for user 'root'@'localhost'"] })] });
@@ -157,18 +163,18 @@ describe("fatal versus warning", () => {
     expect(stateOf(system, "database")).toBe("failed");
     expect(stateOf(system, "panel")).toBe("pending");
     expect(system.lines().some((line) => line.startsWith("rm -rf /var/www/html/modules/control_panel"))).toBe(false);
-    const { error } = progressOf(system);
-    expect(error).toMatchObject({ phase: "database", code: 1 });
-    expect(error!.cause).toContain("senha do MySQL");
-    expect(error!.output.join("\n")).toContain("Access denied");
-    expect(system.say.lines.some((line) => line.level === "error" && line.text.includes("banco do IssabelPBX"))).toBe(true);
+    const { failure } = phasesOf(system);
+    expect(failure).toMatchObject({ phase: "database", code: 1 });
+    expect(causeOf(failure!)).toContain("senha do MySQL");
+    expect(failure!.output!.join("\n")).toContain("Access denied");
+    expect(said(system, "error", "banco do IssabelPBX")).toBe(true);
   });
   test("issabel-admin-passwords failing is fatal; the fop2 sync failing is a warning", async () => {
     const fatal = fakeSystem({ rules: [failing((call) => call.cmd === "issabel-admin-passwords")] });
     expect(await fresh(fatal)).toMatchObject({ ok: false, failedPhase: "passwords" });
     const soft = fakeSystem({ files: { "/usr/local/fop2/create_fop2_manager_user.pl": "#!/usr/bin/perl" }, rules: [failing((call) => call.cmd === "create_fop2_manager_user.pl")] });
     expect((await fresh(soft)).ok).toBe(true);
-    expect(soft.say.lines.some((line) => line.level === "warning" && line.text.includes("fop2"))).toBe(true);
+    expect(said(soft, "warning", "fop2")).toBe(true);
   });
   test("a program that cannot start (127) stops a must-step with its output", async () => {
     const system = fakeSystem({ rules: [failing((call) => call.cmd === "groupadd", { code: 127, stderr: "groupadd: command not found" })] });
@@ -187,10 +193,10 @@ describe("batch then one by one", () => {
     const singles = dnfInstalls(system).filter((call) => call.args.length === 3 && call.args[2] !== "epel-release" && call.args[2] !== "issabel-config_helpers");
     expect(singles.length).toBeGreaterThan(40);
     expect(singles.map((call) => call.args[2])).toContain("php-mcrypt");
-    expect(progressOf(system).error!.command).toContain("php-mcrypt");
-    expect(progressOf(system).error!.output.join(" ")).toContain("php-mcrypt");
-    expect(progressOf(system).packages.failed).toContain("php-mcrypt");
-    expect(system.say.lines.some((line) => line.level === "warning" && line.text.includes("pacote a pacote"))).toBe(true);
+    expect(phasesOf(system).failure!.command).toContain("php-mcrypt");
+    expect(phasesOf(system).failure!.output!.join(" ")).toContain("php-mcrypt");
+    expect(packagesOf(system).failed).toContain("php-mcrypt");
+    expect(said(system, "warning", "pacote a pacote")).toBe(true);
   });
   test("the Issabel batch is not tried when the base batch left a failure", async () => {
     const system = fakeSystem({ rules: [batchFails(["php-mcrypt"])] });
@@ -212,45 +218,45 @@ describe("resume", () => {
     const system = fakeSystem({ rules: [failAt("install_amp")] });
     expect(await fresh(system)).toMatchObject({ ok: false, failedPhase: "database" });
     const callsBefore = system.calls.length;
-    const saved = progressOf(system);
-    const second = fakeSystem({ files: Object.fromEntries(system.fs.files), store: { [STORE_KEY.progress]: saved }, installed: system.installed });
-    expect((await executeInstall(second.deps, { mode: "resume" })).ok).toBe(true);
+    const second = fakeSystem({ files: Object.fromEntries(system.fs.files), store: system.store.data, installed: system.installed });
+    expect((await resume(second)).ok).toBe(true);
     expect(callsBefore).toBeGreaterThan(second.calls.length);
     for (const early of ["dnf install", "dnf makecache", "setenforce", "systemctl start mariadb", "cp -f"]) expect(second.indexOf(early)).toBe(-1);
     expect(second.indexOf("install_amp")).toBe(0);
-    expect(second.say.lines.filter((line) => line.text.includes("já concluída")).length).toBe(5);
+    expect(second.ctx.lines.filter((line) => line.text.includes("já concluída")).length).toBe(5);
     const initCall = second.calls.find((call) => call.cmd === "issabel-admin-passwords")!;
     expect(initCall.args.slice(2)).toEqual([PASSWORDS.sql, PASSWORDS.web]);
-    expect(progressOf(second).phases.filter((phase) => phase.state === "done")).toHaveLength(9);
+    expect(phasesOf(second).phases.filter((phase) => phase.state === "done")).toHaveLength(9);
   });
 
   test("a phase left running by a dead job goes back to pending and runs again", async () => {
     const system = fakeSystem({ rules: [failAt("install_amp")] });
     await fresh(system);
-    const saved = progressOf(system);
+    const saved = phasesOf(system);
     saved.phases.find((phase) => phase.id === "database")!.state = "running";
-    saved.error = undefined;
-    const second = fakeSystem({ files: Object.fromEntries(system.fs.files), store: { [STORE_KEY.progress]: saved }, installed: system.installed });
-    await executeInstall(second.deps, { mode: "resume" });
+    saved.failure = undefined;
+    system.store.set(PHASES_KEY, saved);
+    const second = fakeSystem({ files: Object.fromEntries(system.fs.files), store: system.store.data, installed: system.installed });
+    await resume(second);
     expect(second.indexOf("install_amp")).toBe(0);
   });
 
   test("a resumed package phase keeps the packages already done and counts the new ones", async () => {
     const system = fakeSystem({ rules: [failing((call) => call.cmd === "dnf" && call.args.includes("issabel-geoip"))] });
     await fresh(system);
-    const done = progressOf(system).packages.done.length;
+    const done = packagesOf(system).done.length;
     expect(done).toBeGreaterThan(40);
-    expect(progressOf(system).packages.failed).toContain("issabel-geoip");
-    const second = fakeSystem({ files: Object.fromEntries(system.fs.files), store: { [STORE_KEY.progress]: progressOf(system) }, installed: system.installed });
-    await executeInstall(second.deps, { mode: "resume" });
-    const { packages } = progressOf(second);
-        expect(packages.done.length).toBeGreaterThan(done);
+    expect(packagesOf(system).failed).toContain("issabel-geoip");
+    const second = fakeSystem({ files: Object.fromEntries(system.fs.files), store: system.store.data, installed: system.installed });
+    await resume(second);
+    const packages = packagesOf(second);
+    expect(packages.done.length).toBeGreaterThan(done);
     expect(packages.failed).toEqual([]);
     expect(packages.total).toBe(packages.done.length);
   });
 
   test("with nothing to resume it says so", async () => {
-    const outcome = await executeInstall(fakeSystem().deps, { mode: "resume" });
+    const outcome = await resume(fakeSystem());
     expect(outcome.ok).toBe(false);
     expect(outcome.ok === false && "error" in outcome && (outcome.error as Error).message).toContain("não há instalação");
   });
@@ -258,8 +264,8 @@ describe("resume", () => {
   test("without the credentials file it refuses, instead of resetting the passwords", async () => {
     const system = fakeSystem({ rules: [failAt("install_amp")] });
     await fresh(system);
-    const second = fakeSystem({ store: { [STORE_KEY.progress]: progressOf(system) } });
-    const outcome = await executeInstall(second.deps, { mode: "resume" });
+    const second = fakeSystem({ store: system.store.data });
+    const outcome = await resume(second);
     expect(outcome.ok).toBe(false);
     expect(second.calls).toHaveLength(0);
   });
@@ -276,8 +282,8 @@ describe("the reboot phase", () => {
   });
   test("an answer of `now` or `postponed` from the store ends the wait", async () => {
     const now = fakeSystem();
-    const sleeping = now.deps.sleep;
-    now.deps.sleep = async (ms) => {
+    const sleeping = now.env.sleep;
+    now.env.sleep = async (ms) => {
       await sleeping(ms);
       const plan = now.store.get<{ at: number; choice: string }>(STORE_KEY.reboot);
       if (plan) now.store.set(STORE_KEY.reboot, { ...plan, choice: "now" });
@@ -287,15 +293,15 @@ describe("the reboot phase", () => {
     expect(now.clock.now).toBeLessThan(1_800_000_000_000 + 60_000);
 
     const postponed = fakeSystem();
-    const sleepingToo = postponed.deps.sleep;
-    postponed.deps.sleep = async (ms) => {
+    const sleepingToo = postponed.env.sleep;
+    postponed.env.sleep = async (ms) => {
       await sleepingToo(ms);
       const plan = postponed.store.get<{ at: number; choice: string }>(STORE_KEY.reboot);
       if (plan) postponed.store.set(STORE_KEY.reboot, { ...plan, choice: "postponed" });
     };
     await fresh(postponed, withReboot);
     expect(postponed.lines()).not.toContain("reboot");
-    expect(progressOf(postponed).phases.at(-1)).toMatchObject({ state: "done", detail: "adiado" });
+    expect(phasesOf(postponed).phases.at(-1)).toMatchObject({ state: "done", detail: "adiado" });
   });
 });
 
@@ -304,15 +310,15 @@ describe("logs", () => {
     const system = fakeSystem();
     await fresh(system);
     for (const label of ["repositórios", "preparo do sistema", "PHP 7.4 (Remi)", "pacotes", "pós-instalação", "banco do IssabelPBX", "painel do operador", "fuso horário", "senhas"]) {
-      expect(system.say.lines).toContainEqual({ level: "info", text: `fase ${label}: iniciando` });
-      expect(system.say.lines).toContainEqual({ level: "success", text: `fase ${label}: concluída` });
+      expect(system.ctx.lines).toContainEqual({ kind: "info", text: `fase ${label}: iniciando` });
+      expect(system.ctx.lines).toContainEqual({ kind: "success", text: `fase ${label}: concluída` });
     }
-    expect(system.say.lines).toContainEqual({ level: "info", text: "fase reiniciar: pulada (--no-reboot)" });
+    expect(system.ctx.lines).toContainEqual({ kind: "success", text: "fase reiniciar: pulada (--no-reboot)" });
   });
   test("the full dnf output goes to the raw (job log) channel, with the command echoed", async () => {
     const system = fakeSystem();
     await fresh(system);
-    const raw = system.say.lines.filter((line) => line.level === "raw").map((line) => line.text);
+    const raw = system.ctx.jobLines;
     expect(raw).toContain("$ dnf install -y epel-release");
     expect(raw.some((line) => line.includes("Transaction Summary"))).toBe(true);
     expect(raw.some((line) => line.startsWith("  Installing       : epel-release"))).toBe(true);
@@ -320,6 +326,6 @@ describe("logs", () => {
   test("progress lines are not repeated at info level", async () => {
     const system = fakeSystem();
     await fresh(system);
-    expect(system.say.lines.filter((line) => line.level === "info" && /Installing|Verifying/.test(line.text))).toEqual([]);
+    expect(system.ctx.lines.filter((line) => line.kind === "info" && /Installing|Verifying/.test(line.text))).toEqual([]);
   });
 });

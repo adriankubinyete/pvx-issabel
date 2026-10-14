@@ -1,114 +1,96 @@
-// The install itself: sets up a fresh run or a resume, hands the phases their context and records what happens. It takes its
-// dependencies as arguments (exec, fs, store, clock), so the tests run it end to end against a fake system.
-import type { AbortSignalLike, ModuleFs, Store } from "@pvx/sdk";
+// The install itself: sets up a fresh run or a resume, hands the phases their context and lets `ctx.phases` record what happens. The
+// command context comes in as an argument, so the tests run it end to end against a fake one.
+import type { AbortSignalLike, CommandCtx, PackageProgress, PackagesKit, PhasesResult } from "@pvx/sdk";
 import { credentialsPath, newCredentials, parseCredentials, saveCredentials } from "./credentials.ts";
-import { createDnfState } from "./dnf.ts";
 import { toError } from "./errors.ts";
-import { failureOf } from "./failure.ts";
-import { STORE_KEY, type NetinstallProgress, type PhaseId, type RunOptions } from "./state.ts";
-import { PHASES } from "./phases/index.ts";
+import { sayOf, withJobLog } from "./exec.ts";
+import { createPackageWall } from "./package-wall.ts";
+import { JOB_NAME, STORE_KEY, type InstallState, type RunOptions } from "./state.ts";
+import { phaseDefsOf } from "./phases/index.ts";
 import { rebootNow, rebootRequested } from "./phases/reboot.ts";
 import type { InstallPaths, Passwords, PhaseContext } from "./phases/context.ts";
-import { failPhase, finishPhase, isPhaseFinished, newProgress, prepareResume, skipPhase, startPhase } from "./progress.ts";
-import { createProgressStore, type ProgressStore } from "./progress-store.ts";
-import { runPhases, type PhaseHooks, type RunResult } from "./runner.ts";
-import { createShell, type ExecFn, type Say } from "./exec.ts";
 
-export interface InstallDeps {
-  exec: ExecFn;
-  fs: ModuleFs;
-  store: Store;
-  say: Say;
+/** What the install needs besides the command context: where its files are, the clock and the tracker of dnf output. */
+export interface InstallEnv {
   paths: InstallPaths;
   signal: AbortSignalLike;
+  packages: PackagesKit;
   now(): number;
   sleep(ms: number): Promise<void>;
 }
 
 export type InstallRequest = { mode: "fresh"; options: RunOptions; passwords: Passwords } | { mode: "resume" };
-export type InstallOutcome = RunResult<PhaseId> | { ok: false; failedPhase?: undefined; error: Error };
-
-const hooksFor = (progress: ProgressStore, now: () => number): PhaseHooks<PhaseId> => ({
-  isFinished: (id) => isPhaseFinished(progress.progress, id),
-  started(id) {
-    startPhase(progress.progress, id, now());
-    progress.save();
-  },
-  finished(id, detail) {
-    finishPhase(progress.progress, id, now(), detail);
-    progress.save();
-  },
-  skipped(id, reason) {
-    skipPhase(progress.progress, id, reason);
-    progress.save();
-  },
-  failed(id, error) {
-    failPhase(progress.progress, id, now(), failureOf(id, error));
-    progress.save();
-  },
-});
+export type InstallOutcome = PhasesResult | { ok: false; failedPhase?: undefined; error: Error };
 
 interface Prepared {
-  progress: NetinstallProgress;
+  options: RunOptions;
   passwords: Passwords;
-  credentialsFile: PhaseContext["credentials"];
+  credentials: PhaseContext["credentials"];
+  /** What a resume keeps of the package wall; a fresh run starts with none. */
+  packages?: PackageProgress;
 }
 
 /** A fresh run writes the credentials file first (0600): a resume has no other way to get the passwords back. */
-async function prepareFresh(deps: InstallDeps, request: Extract<InstallRequest, { mode: "fresh" }>, progress: NetinstallProgress): Promise<Prepared> {
+async function prepareFresh(ctx: CommandCtx, env: InstallEnv, request: Extract<InstallRequest, { mode: "fresh" }>): Promise<Prepared> {
   const { options, passwords } = request;
-  const when = new Date(deps.now());
-  const credentialsFile = { path: credentialsPath(when, deps.paths.stateDir), data: newCredentials(options, passwords, when) };
-  progress.credentialsFile = credentialsFile.path;
-  deps.store.delete(STORE_KEY.reboot);
-  await saveCredentials(createShell(deps.exec, deps.say, deps.signal), deps.fs, credentialsFile.path, credentialsFile.data);
-  return { progress, passwords, credentialsFile };
+  const when = new Date(env.now());
+  const credentials = { path: credentialsPath(when, env.paths.stateDir), data: newCredentials(options, passwords, when) };
+  await saveCredentials(ctx.fs, credentials.path, credentials.data);
+  const install: InstallState = { options, credentialsFile: credentials.path };
+  ctx.store.set(STORE_KEY.install, install);
+  ctx.store.delete(STORE_KEY.packages);
+  ctx.store.delete(STORE_KEY.reboot);
+  return { options, passwords, credentials };
 }
 
-async function prepareResumed(deps: InstallDeps, progress: NetinstallProgress): Promise<Prepared> {
-  const path = progress.credentialsFile;
-  const data = path ? parseCredentials(await deps.fs.read(path).catch(() => "")) : undefined;
+/** A package that was running when the job died is redone, and an earlier failure is tried again. */
+function packagesToResume(saved: PackageProgress | undefined): PackageProgress | undefined {
+  if (!saved) return undefined;
+  return { ...saved, running: [], failed: [] };
+}
+
+async function prepareResumed(ctx: CommandCtx): Promise<Prepared> {
+  const install = ctx.store.get<InstallState>(STORE_KEY.install);
+  if (!install) throw new Error("não há instalação para continuar: rode `issabel netinstall`");
+  const path = install.credentialsFile;
+  const data = path ? parseCredentials(await ctx.fs.read(path).catch(() => "")) : undefined;
   if (!path || !data) throw new Error("não achei o arquivo de credenciais da instalação: não dá para continuar; comece de novo com --force");
-  prepareResume(progress, deps.now());
-  return { progress, passwords: { sql: data.mysqlPassword, web: data.webPassword }, credentialsFile: { path, data } };
+  const passwords = { sql: data.mysqlPassword, web: data.webPassword };
+  return { options: install.options, passwords, credentials: { path, data }, packages: packagesToResume(ctx.store.get<PackageProgress>(STORE_KEY.packages)) };
 }
 
-function prepare(deps: InstallDeps, request: InstallRequest): Promise<Prepared> {
-  if (request.mode === "fresh") return prepareFresh(deps, request, newProgress(request.options, deps.now()));
-  const saved = deps.store.get<NetinstallProgress>(STORE_KEY.progress);
-  if (!saved) throw new Error("não há instalação para continuar: rode `issabel netinstall`");
-  return prepareResumed(deps, saved);
+function prepare(ctx: CommandCtx, env: InstallEnv, request: InstallRequest): Promise<Prepared> {
+  return request.mode === "fresh" ? prepareFresh(ctx, env, request) : prepareResumed(ctx);
 }
 
-function contextOf(deps: InstallDeps, prepared: Prepared, progress: ProgressStore): PhaseContext {
+function contextOf(ctx: CommandCtx, env: InstallEnv, prepared: Prepared): PhaseContext {
+  const say = sayOf(ctx);
+  const tracker = env.packages.tracker("dnf", prepared.packages);
   return {
-    options: prepared.progress.options,
+    options: prepared.options,
     passwords: prepared.passwords,
-    credentials: prepared.credentialsFile,
-    shell: createShell(deps.exec, deps.say, deps.signal),
-    fs: deps.fs,
-    store: deps.store,
-    say: deps.say,
-    dnf: createDnfState(prepared.progress.packages),
-    progress,
-    paths: deps.paths,
-    now: deps.now,
-    sleep: deps.sleep,
+    credentials: prepared.credentials,
+    shell: withJobLog(ctx.shell, say, env.signal),
+    fs: ctx.fs,
+    store: ctx.store,
+    say,
+    packages: createPackageWall(ctx.store, tracker, env.now),
+    paths: env.paths,
+    now: env.now,
+    sleep: env.sleep,
   };
 }
 
 /** Runs the phases (all of them, or the unfinished ones of a resume) and, when the last phase asks for it, restarts the central. */
-export async function executeInstall(deps: InstallDeps, request: InstallRequest): Promise<InstallOutcome> {
+export async function executeInstall(ctx: CommandCtx, env: InstallEnv, request: InstallRequest): Promise<InstallOutcome> {
   let prepared: Prepared;
   try {
-    prepared = await prepare(deps, request);
+    prepared = await prepare(ctx, env, request);
   } catch (error) {
     return { ok: false, error: toError(error) };
   }
-  const progress = createProgressStore(deps.store, prepared.progress, deps.now);
-  progress.save();
-  const context = contextOf(deps, prepared, progress);
-  const result = await runPhases(PHASES, context, hooksFor(progress, deps.now), deps.say);
-  if (result.ok && rebootRequested(prepared.progress)) await rebootNow(context);
+  const context = contextOf(ctx, env, prepared);
+  const result = await ctx.phases.run(JOB_NAME, phaseDefsOf(context), { fresh: request.mode === "fresh" });
+  if (result.ok && rebootRequested(ctx.phases.state(JOB_NAME))) await rebootNow(context);
   return result;
 }

@@ -2,15 +2,12 @@
 import type { CommandCtx } from "@pvx/sdk";
 import { FOLLOW_POLL_MS, sleep } from "../clock.ts";
 import { messageOf } from "../errors.ts";
-import type { Say } from "../exec.ts";
 import { checkLine } from "../health/summary.ts";
 import type { Check } from "../preflight.ts";
 import { JOB_NAME } from "../state.ts";
 import { HOW_TO_FOLLOW, STOPPED, STOPPED_FAILED } from "../texts.ts";
 
 export const FOLLOW_ARG = { name: "follow", help: "Acompanha o log até o fim (padrão: só diz como acompanhar)", kind: "flag" } as const;
-
-export const sayOf = (ctx: CommandCtx): Say => ({ info: ctx.out.info, success: ctx.out.success, warning: ctx.out.warning, error: ctx.out.error, raw: ctx.jobLog });
 
 export function printCheck(ctx: CommandCtx, check: Check): void {
   const line = checkLine(check);

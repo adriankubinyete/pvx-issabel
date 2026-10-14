@@ -1,8 +1,6 @@
-import type { PhaseId } from "../state.ts";
-import type { Phase } from "../runner.ts";
 import { REMI_PHP_STREAM } from "../packages.ts";
 import { parseOsRelease, versionMajor } from "../text-edits.ts";
-import { attempt, installOrFail, SHORT_TIMEOUT_MS, type PhaseContext } from "./context.ts";
+import { attempt, installOrFail, SHORT_TIMEOUT_MS, type PhaseContext, type InstallPhase } from "./context.ts";
 
 const remiReleaseUrl = (major: number) => `https://rpms.remirepo.net/enterprise/remi-release-${major}.rpm`;
 const EXTRA_REPOS = ["remi", "powertools", "devel"];
@@ -26,9 +24,10 @@ async function enableExtraRepos(context: PhaseContext): Promise<void> {
   for (const repo of EXTRA_REPOS) await attempt(context, `repositório ${repo}`, () => context.shell.ok("dnf", ["config-manager", "--set-enabled", repo]));
 }
 
-export const phpPhase: Phase<PhaseContext, PhaseId> = {
+export const phpPhase: InstallPhase = {
   id: "php",
   label: "PHP 7.4 (Remi)",
+  weight: 3,
   async run(context) {
     await installRemi(context);
     await enablePhpStream(context);

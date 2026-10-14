@@ -1,7 +1,5 @@
-import type { PhaseId } from "../state.ts";
-import type { Phase } from "../runner.ts";
 import { passwdHasUser, withSelinuxDisabled } from "../text-edits.ts";
-import { attempt, installOrFail, type PhaseContext } from "./context.ts";
+import { attempt, installOrFail, type PhaseContext, type InstallPhase } from "./context.ts";
 
 const SELINUX_CONFIG = "/etc/selinux/config";
 const PASSWD_FILE = "/etc/passwd";
@@ -24,9 +22,10 @@ async function ensureAsteriskUser(context: PhaseContext): Promise<void> {
   await context.shell.must("useradd", ["-r", "-g", "asterisk", "-c", "Asterisk PBX", "-s", "/bin/bash", "-d", ASTERISK_HOME, "asterisk"]);
 }
 
-export const preparePhase: Phase<PhaseContext, PhaseId> = {
+export const preparePhase: InstallPhase = {
   id: "prepare",
   label: "preparo do sistema",
+  weight: 1,
   async run(context) {
     await disableSelinux(context);
     await ensureAsteriskUser(context);

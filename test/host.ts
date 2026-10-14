@@ -3,7 +3,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { jobsConfig, jobsDir } from "@pvx/core";
-import type { NetinstallProgress, RebootPlan } from "../src/state.ts";
+import { JOB_NAME, type RebootPlan } from "../src/state.ts";
+import type { Sample } from "./samples.ts";
 
 export const FIXTURE = join(import.meta.dir, "fixture");
 export const SQL_SECRET = "SqlSecretPassw0rdXyzAbcd1";
@@ -28,19 +29,21 @@ export const stateDirOf = (home: string) => join(home, "modules", "issabel", "st
 
 /** What a test writes to stand in for a job and its progress (no process runs). */
 export interface Injected {
-  progress?: NetinstallProgress;
+  sample?: Sample;
   reboot?: RebootPlan;
   /** The job as the host reads it. `pid` defaults to the test's own, so "running" stays running: never stop such a job (the host signals the pid's group). */
   job?: { state: "running" | "done" | "failed" | "stopped"; startedAt: number; pid?: number };
   log?: string[];
-  /** Text of a credentials file (its path is `progress.credentialsFile`). */
+  /** Text of a credentials file (its path is `sample.install.credentialsFile`). */
   credentials?: string;
 }
 
 export function inject(home: string, data: Injected): void {
   mkdirSync(stateDirOf(home), { recursive: true });
-  writeFileSync(join(stateDirOf(home), "state.json"), JSON.stringify({ progress: data.progress, reboot: data.reboot }));
-  if (data.credentials && data.progress?.credentialsFile) writeFileSync(data.progress.credentialsFile, data.credentials, { mode: 0o600 });
+  const { sample } = data;
+  const store = { [`phases:${JOB_NAME}`]: sample?.phases, install: sample?.install, packages: sample?.packages, reboot: data.reboot };
+  writeFileSync(join(stateDirOf(home), "state.json"), JSON.stringify(store));
+  if (data.credentials && sample?.install.credentialsFile) writeFileSync(sample.install.credentialsFile, data.credentials, { mode: 0o600 });
   if (!data.job) return;
   const dir = jobsDir("issabel");
   mkdirSync(dir, { recursive: true });

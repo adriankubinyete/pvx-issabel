@@ -29,7 +29,6 @@
       "chown",
       "chmod",
       "cp",
-      "mv",
       "amportal",
       "issabel-admin-passwords",
       "create_fop2_manager_user.pl",

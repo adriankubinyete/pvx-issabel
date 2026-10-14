@@ -1,11 +1,11 @@
 // `netinstall run`: the body of the job. Internal: `netinstall` and `netinstall resume` start it.
-import type { CommandCtx, CommandDef } from "@pvx/sdk";
+import type { CommandCtx, CommandDef, Sdk } from "@pvx/sdk";
 import { sleep } from "../clock.ts";
+import { messageOf } from "../errors.ts";
 import { executeInstall, type InstallRequest } from "../install.ts";
 import { OPTION_ARGS, readOptions } from "../options.ts";
-import { systemOf, type SystemOverrides } from "../system.ts";
+import { installPaths } from "../paths.ts";
 import { MISSING_PASSWORDS } from "../texts.ts";
-import { sayOf } from "./context.ts";
 
 function requestOf(ctx: CommandCtx): InstallRequest | string {
   if (ctx.flag("resume")) return { mode: "resume" };
@@ -17,18 +17,17 @@ function requestOf(ctx: CommandCtx): InstallRequest | string {
   return { mode: "fresh", options: parsed.options, passwords: { sql, web } };
 }
 
-export function runCommands(overrides: SystemOverrides): Record<string, CommandDef> {
+export function runCommands(sdk: Sdk): Record<string, CommandDef> {
   async function runInstall(ctx: CommandCtx): Promise<void> {
     const request = requestOf(ctx);
     if (typeof request === "string") {
       ctx.out.error(request);
       return;
     }
-    const { exec, fs, paths, sleep: wait } = systemOf(ctx, overrides);
     // A signal on every exec puts each program in its own process group: that is what lets `jobs.stop` kill them with the job.
     const { signal } = new AbortController();
-    const outcome = await executeInstall({ exec, fs, store: ctx.store, say: sayOf(ctx), paths, signal, now: Date.now, sleep: wait ?? sleep }, request);
-    if (!outcome.ok && !outcome.failedPhase) ctx.out.error(outcome.error.message);
+    const outcome = await executeInstall(ctx, { paths: installPaths(), signal, packages: sdk.packages, now: Date.now, sleep }, request);
+    if (!outcome.ok && !outcome.failedPhase) ctx.out.error(messageOf(outcome.error));
   }
 
   return {

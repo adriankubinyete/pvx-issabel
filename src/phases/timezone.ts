@@ -1,7 +1,5 @@
-import type { PhaseId } from "../state.ts";
-import type { Phase } from "../runner.ts";
 import { withPhpTimezone } from "../text-edits.ts";
-import { attempt, type PhaseContext } from "./context.ts";
+import { attempt, type PhaseContext, type InstallPhase } from "./context.ts";
 
 const PHP_INI = "/etc/php.ini";
 
@@ -19,9 +17,10 @@ async function setPhpTimezone(context: PhaseContext, timezone: string): Promise<
   if (after !== before) await context.fs.write(PHP_INI, after);
 }
 
-export const timezonePhase: Phase<PhaseContext, PhaseId> = {
+export const timezonePhase: InstallPhase = {
   id: "timezone",
   label: "fuso horário",
+  weight: 1,
   async run(context) {
     const { timezone } = context.options;
     await setSystemTimezone(context, timezone);

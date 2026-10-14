@@ -1,9 +1,7 @@
 // The operator panel is always installed (owner decision): the bundled files, then three sqlite inserts that register it in the
 // Issabel menu and give group 1 permission. Each insert is guarded by WHERE NOT EXISTS, so a rerun adds nothing twice.
 import { join } from "node:path";
-import type { PhaseId } from "../state.ts";
-import type { Phase } from "../runner.ts";
-import { attempt, SHORT_TIMEOUT_MS, type PhaseContext } from "./context.ts";
+import { attempt, SHORT_TIMEOUT_MS, type PhaseContext, type InstallPhase } from "./context.ts";
 
 const PANEL_DIR = "/var/www/html/modules/control_panel";
 const ACL_DB = "/var/www/db/acl.db";
@@ -30,9 +28,10 @@ async function registerInMenu(context: PhaseContext): Promise<void> {
   for (const [database, sql] of inserts) await attempt(context, `sqlite3 ${database}`, () => context.shell.ok("sqlite3", [database, sql]));
 }
 
-export const panelPhase: Phase<PhaseContext, PhaseId> = {
+export const panelPhase: InstallPhase = {
   id: "panel",
   label: "painel do operador",
+  weight: 2,
   async run(context) {
     await copyPanelFiles(context);
     await registerInMenu(context);

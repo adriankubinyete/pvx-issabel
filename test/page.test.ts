@@ -44,7 +44,7 @@ const toConfirm = async (p: TuiHarness) => {
   await press(p, "RETURN", "RETURN", "RETURN");
   await waitText(p, "Antes de instalar");
 };
-const injectRunning = () => inject(session.home, { progress: installing(), job: { state: "running", startedAt: NOW - 13 * 60_000 }, log: LOG_LINES });
+const injectRunning = () => inject(session.home, { sample: installing(), job: { state: "running", startedAt: NOW - 13 * 60_000 }, log: LOG_LINES });
 const credentialsPath = () => `${stateDirOf(session.home)}/credenciais-x.txt`;
 
 describe("the hub", () => {
@@ -247,7 +247,7 @@ describe("the live view (injected progress)", () => {
       injectRunning();
       const p = await open(cols, rows);
       const frame = await waitText(p, "php-imap");
-      expect(frame).toMatch(/45%/);
+      expect(frame).toMatch(/ 8%/); // the three finished phases: the bar moves by finished weight
       expect(frame).toContain("faltam ~");
       expect(frame).toContain("✓ repositórios");
       expect(frame).toMatch(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] pacotes/);
@@ -256,7 +256,7 @@ describe("the live view (injected progress)", () => {
       expect(frame).toContain("▸ php-imap");
       expect(frame).toContain("baixando");
       expect(frame).toContain("instalando");
-      expect(frame).toContain("configurando");
+      expect(frame).toContain("verificando");
       expect(frame).toContain("▪ 96 concluído");
       expect(frame).toContain("▪ 3 rodando");
       expect(frame).toContain("▪ 1 falhou");
@@ -302,7 +302,7 @@ describe("the live view (injected progress)", () => {
 
   test("x stops the job through the host and the view offers to continue", async () => {
     const sleeper = Bun.spawn(["sleep", "30"], { detached: true, stdout: "ignore", stderr: "ignore" }); // a real process of its own to stop
-    inject(session.home, { progress: installing(), job: { state: "running", startedAt: NOW - 13 * 60_000, pid: sleeper.pid }, log: LOG_LINES });
+    inject(session.home, { sample: installing(), job: { state: "running", startedAt: NOW - 13 * 60_000, pid: sleeper.pid }, log: LOG_LINES });
     const p = await open(100, 30);
     await waitText(p, "php-imap");
     await p.press("x");
@@ -313,7 +313,7 @@ describe("the live view (injected progress)", () => {
   });
 
   test("a progress older than the job the host knows is not shown as this run", async () => {
-    inject(session.home, { progress: installing(), job: { state: "running", startedAt: NOW + 60_000 }, log: [] });
+    inject(session.home, { sample: installing(), job: { state: "running", startedAt: NOW + 60_000 }, log: [] });
     const p = await open(100, 30);
     await waitText(p, "iniciando a instalação…");
     expect(p.frame()).not.toContain("php-imap");
@@ -321,7 +321,7 @@ describe("the live view (injected progress)", () => {
 });
 
 describe("where it stopped (injected)", () => {
-  const injectFailed = () => inject(session.home, { progress: failedAtDatabase(credentialsPath()), job: { state: "failed", startedAt: NOW - 20 * 60_000 }, log: LOG_LINES, credentials: CREDENTIALS_TEXT });
+  const injectFailed = () => inject(session.home, { sample: failedAtDatabase(credentialsPath()), job: { state: "failed", startedAt: NOW - 20 * 60_000 }, log: LOG_LINES, credentials: CREDENTIALS_TEXT });
 
   for (const [cols, rows] of SIZES)
     test(`the bar stops red and contiguous, the error is in the right panel, at ${cols}x${rows}`, async () => {
@@ -376,9 +376,9 @@ describe("where it stopped (injected)", () => {
   });
 
   test("a stopped job (no error recorded) offers to continue", async () => {
-    const progress = failedAtDatabase(credentialsPath());
-    progress.error = undefined;
-    inject(session.home, { progress, job: { state: "stopped", startedAt: NOW - 20 * 60_000 }, log: [], credentials: CREDENTIALS_TEXT });
+    const sample = failedAtDatabase(credentialsPath());
+    sample.phases.failure = undefined;
+    inject(session.home, { sample, job: { state: "stopped", startedAt: NOW - 20 * 60_000 }, log: [], credentials: CREDENTIALS_TEXT });
     const p = await open(100, 30);
     await waitText(p, "ferramentas");
     await p.press("RETURN");
@@ -387,8 +387,8 @@ describe("where it stopped (injected)", () => {
 });
 
 describe("the end (injected)", () => {
-  const injectDone = (reboot: { at: number; choice: "wait" | "now" | "postponed" } | undefined, options = finished().options) =>
-    inject(session.home, { progress: finished(credentialsPath(), options), reboot, job: { state: "running", startedAt: NOW - 20 * 60_000 }, credentials: CREDENTIALS_TEXT, log: [] });
+  const injectDone = (reboot: { at: number; choice: "wait" | "now" | "postponed" } | undefined, options = finished().install.options) =>
+    inject(session.home, { sample: finished(credentialsPath(), options), reboot, job: { state: "running", startedAt: NOW - 20 * 60_000 }, credentials: CREDENTIALS_TEXT, log: [] });
 
   for (const [cols, rows] of SIZES)
     test(`URL, user, masked passwords and the countdown, at ${cols}x${rows}`, async () => {
@@ -456,15 +456,15 @@ describe("the end (injected)", () => {
   });
 
   test("with --no-reboot the screen says to reboot by hand; a postponed plan says so; an old plan says it restarted", async () => {
-    injectDone(undefined, { ...finished().options, reboot: false });
+    injectDone(undefined, { ...finished().install.options, reboot: false });
     let p = await open(100, 30);
     expect(await waitText(p, "--no-reboot")).not.toContain("[ adiar ]");
     p.destroy();
-    injectDone({ at: NOW + 45_000, choice: "postponed" }, finished().options);
+    injectDone({ at: NOW + 45_000, choice: "postponed" }, finished().install.options);
     p = await open(100, 30);
     expect(await waitText(p, "reinício adiado: reinicie")).not.toContain("[ adiar ]");
     p.destroy();
-    injectDone({ at: NOW - 10 * 60_000, choice: "now" }, finished().options);
+    injectDone({ at: NOW - 10 * 60_000, choice: "now" }, finished().install.options);
     p = await open(100, 30);
     await waitText(p, "a central já reiniciou");
   });
@@ -481,7 +481,7 @@ describe("opening the tab while an install runs", () => {
   });
 
   test("with a finished install the tab opens on the hub (no jump)", async () => {
-    inject(session.home, { progress: finished(credentialsPath()), job: { state: "done", startedAt: NOW - 20 * 60_000 }, credentials: CREDENTIALS_TEXT, log: [] });
+    inject(session.home, { sample: finished(credentialsPath()), job: { state: "done", startedAt: NOW - 20 * 60_000 }, credentials: CREDENTIALS_TEXT, log: [] });
     const p = await open(100, 30);
     expect(await waitText(p, "ferramentas")).not.toContain("Issabel 5 instalado");
   });

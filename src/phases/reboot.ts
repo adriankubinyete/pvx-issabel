@@ -1,8 +1,8 @@
 // The last phase: the central restarts by itself after a countdown the page shows. `netinstall reboot` (now) and
 // `netinstall postpone` answer it from another process through the `reboot` store key.
-import { STORE_KEY, type NetinstallProgress, type PhaseId, type RebootPlan } from "../state.ts";
-import type { Phase } from "../runner.ts";
-import type { PhaseContext } from "./context.ts";
+import type { PhasesState } from "@pvx/sdk";
+import { REBOOT_PHASE, STORE_KEY, type RebootPlan } from "../state.ts";
+import type { InstallPhase, PhaseContext } from "./context.ts";
 
 export const REBOOT_DELAY_MS = 60_000;
 export const REBOOTING_DETAIL = "reiniciando";
@@ -20,9 +20,10 @@ async function waitForReboot(context: PhaseContext): Promise<RebootPlan["choice"
   }
 }
 
-export const rebootPhase: Phase<PhaseContext, PhaseId> = {
-  id: "reboot",
+export const rebootPhase: InstallPhase = {
+  id: REBOOT_PHASE,
   label: "reiniciar",
+  weight: 5,
   async run(context) {
     if (!context.options.reboot) return { skipped: "--no-reboot" };
     context.store.set(STORE_KEY.reboot, { at: context.now() + REBOOT_DELAY_MS, choice: "wait" } satisfies RebootPlan);
@@ -37,7 +38,7 @@ export const rebootPhase: Phase<PhaseContext, PhaseId> = {
 };
 
 /** True when the reboot phase ended wanting the restart (not postponed, not skipped). */
-export const rebootRequested = (progress: NetinstallProgress): boolean => progress.phases.find((phase) => phase.id === "reboot")?.detail === REBOOTING_DETAIL;
+export const rebootRequested = (state: PhasesState | undefined): boolean => state?.phases.find((phase) => phase.id === REBOOT_PHASE)?.detail === REBOOTING_DETAIL;
 
 /** Runs after the runner has recorded the last phase as done. */
 export const rebootNow = (context: PhaseContext) => context.shell.run("reboot", []);

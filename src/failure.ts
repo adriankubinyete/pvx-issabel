@@ -1,7 +1,5 @@
 // What went wrong, in words for the failed screen. Pure.
-import type { FailureInfo, PhaseId } from "./state.ts";
-import { messageOf } from "./errors.ts";
-import { StepError } from "./exec.ts";
+import type { PhaseFailure, PhasesState } from "@pvx/sdk";
 
 interface CauseRule {
   pattern: RegExp;
@@ -24,8 +22,11 @@ export function likelyCause(output: string[]): string {
   return CAUSES.find((rule) => rule.pattern.test(text))?.cause ?? DEFAULT_CAUSE;
 }
 
-/** A thrown error as the failure record the page shows. */
-export function failureOf(phase: PhaseId, error: unknown): FailureInfo {
-  if (error instanceof StepError) return { phase, command: error.command, code: error.code, output: error.output, cause: likelyCause([...error.output, error.message]) };
-  return { phase, command: messageOf(error), output: [], cause: DEFAULT_CAUSE };
-}
+/** The likely cause of a recorded failure, from what the command printed and what the error said. */
+export const causeOf = (failure: PhaseFailure): string => likelyCause([...(failure.output ?? []), failure.message]);
+
+/** What ran when the phase failed; an error that came from no command shows its message instead. */
+export const commandOf = (failure: PhaseFailure): string => failure.command ?? failure.message;
+
+/** The label of a phase by its id (the failure only holds the id). */
+export const phaseLabelOf = (state: PhasesState, id: string): string => state.phases.find((phase) => phase.id === id)?.label ?? id;

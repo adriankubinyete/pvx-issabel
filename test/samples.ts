@@ -1,73 +1,72 @@
-// Progress records a test can inject, shaped like what the job writes.
-import { PHASE_IDS, type NetinstallProgress, type PackageRef, type PhaseId, type PhaseRecord } from "../src/state.ts";
+// What a test injects to stand in for a job and its install, shaped like what the job writes: the phases (`ctx.phases`), the install and the
+// packages (the module store).
+import type { PackageProgress, PackageRef, PhaseRecord, PhasesState } from "@pvx/sdk";
 import { DEFAULT_OPTIONS } from "../src/options.ts";
+import { PHASES } from "../src/phases/index.ts";
+import type { InstallState } from "../src/state.ts";
 
 export const NOW = Date.now();
 const MINUTE = 60_000;
 
+export interface Sample {
+  phases: PhasesState;
+  install: InstallState;
+  packages: PackageProgress;
+}
+
 const pkg = (name: string, version = "1.0-1.el8"): PackageRef => ({ name, version, arch: "x86_64", repo: "baseos", size: "120 k" });
 export const donePackages = (count: number): PackageRef[] => Array.from({ length: count }, (_, index) => pkg(`pacote-${index + 1}`));
 
-const phases = (states: Partial<Record<PhaseId, PhaseRecord["state"]>>): PhaseRecord[] =>
-  PHASE_IDS.map((id, index) => {
-    const state = states[id] ?? "pending";
-    return { id, state, startedAt: state === "pending" ? undefined : NOW - (12 - index) * MINUTE, endedAt: state === "done" ? NOW - (11 - index) * MINUTE : undefined };
+const recordsOf = (states: Record<string, PhaseRecord["state"]>): PhaseRecord[] =>
+  PHASES.map((phase, index) => {
+    const state = states[phase.id] ?? "pending";
+    return {
+      id: phase.id,
+      label: phase.label,
+      weight: phase.weight,
+      state,
+      startedAt: state === "pending" ? undefined : NOW - (12 - index) * MINUTE,
+      endedAt: state === "done" ? NOW - (11 - index) * MINUTE : undefined,
+    };
   });
 
+const sampleOf = (startedMinutesAgo: number, states: Record<string, PhaseRecord["state"]>, packages: PackageProgress, credentialsFile?: string, options = DEFAULT_OPTIONS): Sample => {
+  const startedAt = NOW - startedMinutesAgo * MINUTE;
+  return { phases: { phases: recordsOf(states), startedAt, runStartedAt: startedAt }, install: { options, credentialsFile }, packages };
+};
+
+const allDone = (count: number): PackageProgress => ({ total: count, done: donePackages(count), running: [], failed: [] });
+
 /** In the package phase: 96 of 181 installed, three running, one failure to retry. */
-export function installing(credentialsFile?: string): NetinstallProgress {
-  return {
-    phase: "packages",
-    phases: phases({ repos: "done", prepare: "done", php: "done", packages: "running" }),
-    packages: {
-      total: 181,
-      done: donePackages(96),
-      running: [
-        { ...pkg("php-imap", "7.4.33-1.el8.remi"), stage: "downloading" },
-        { ...pkg("issabel-pbx", "5.0.0-1.el8"), stage: "installing" },
-        { ...pkg("asterisk18-sip", "18.20.2-1.el8"), stage: "configuring" },
-      ],
-      failed: ["wanpipe-utils"],
-    },
-    startedAt: NOW - 12 * MINUTE,
-    runStartedAt: NOW - 12 * MINUTE,
-    options: DEFAULT_OPTIONS,
-    credentialsFile,
-  };
-}
+export const installing = (credentialsFile?: string): Sample =>
+  sampleOf(12, { repos: "done", prepare: "done", php: "done", packages: "running" }, {
+    total: 181,
+    done: donePackages(96),
+    running: [
+      { ...pkg("php-imap", "7.4.33-1.el8.remi"), phase: "download" },
+      { ...pkg("issabel-pbx", "5.0.0-1.el8"), phase: "install" },
+      { ...pkg("asterisk18-sip", "18.20.2-1.el8"), phase: "verify" },
+    ],
+    failed: ["wanpipe-utils"],
+  }, credentialsFile);
 
 /** Stopped at the database phase: everything before it done. */
-export function failedAtDatabase(credentialsFile?: string): NetinstallProgress {
-  return {
+export function failedAtDatabase(credentialsFile?: string): Sample {
+  const sample = sampleOf(19, { repos: "done", prepare: "done", php: "done", packages: "done", post: "done", database: "failed" }, allDone(181), credentialsFile);
+  sample.phases.failure = {
     phase: "database",
-    phases: phases({ repos: "done", prepare: "done", php: "done", packages: "done", post: "done", database: "failed" }),
-    packages: { total: 181, done: donePackages(181), running: [], failed: [] },
-    startedAt: NOW - 19 * MINUTE,
-    runStartedAt: NOW - 19 * MINUTE,
-    options: DEFAULT_OPTIONS,
-    credentialsFile,
-    error: {
-      phase: "database",
-      command: "install_amp --dbuser=root --installdb --scripted --language=en",
-      code: 1,
-      output: ["ERROR 1045 (28000): Access denied for user 'root'@'localhost'"],
-      cause: "a senha do MySQL não foi aplicada na fase anterior",
-    },
+    message: "install_amp --dbuser=root --installdb --scripted --language=en saiu com código 1",
+    command: "install_amp --dbuser=root --installdb --scripted --language=en",
+    code: 1,
+    output: ["ERROR 1045 (28000): Access denied for user 'root'@'localhost'"],
   };
+  return sample;
 }
 
+const FINISHED_STATES = { repos: "done", prepare: "done", php: "done", packages: "done", post: "done", database: "done", panel: "done", timezone: "done", passwords: "done", reboot: "running" } as const;
+
 /** Everything but the reboot done. */
-export function finished(credentialsFile?: string, options = DEFAULT_OPTIONS): NetinstallProgress {
-  return {
-    phase: "reboot",
-    phases: phases({ repos: "done", prepare: "done", php: "done", packages: "done", post: "done", database: "done", panel: "done", timezone: "done", passwords: "done", reboot: "running" }),
-    packages: { total: 181, done: donePackages(181), running: [], failed: [] },
-    startedAt: NOW - 20 * MINUTE,
-    runStartedAt: NOW - 20 * MINUTE,
-    options,
-    credentialsFile,
-  };
-}
+export const finished = (credentialsFile?: string, options = DEFAULT_OPTIONS): Sample => sampleOf(20, FINISHED_STATES, allDone(181), credentialsFile, options);
 
 export const CREDENTIALS_TEXT = [
   "produto=issabel5",

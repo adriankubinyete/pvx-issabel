@@ -1,6 +1,4 @@
-import type { PhaseId } from "../state.ts";
-import type { Phase } from "../runner.ts";
-import { attempt, type PhaseContext } from "./context.ts";
+import { attempt, type PhaseContext, type InstallPhase } from "./context.ts";
 import { clearRootPassword, setTemporaryRootPassword } from "./mysql.ts";
 
 const ISSABEL_CONF = "/etc/issabel.conf";
@@ -25,9 +23,10 @@ async function turnFop2Off(context: PhaseContext): Promise<void> {
   await attempt(context, "systemctl disable fop2", () => context.shell.ok("systemctl", ["disable", "fop2"]));
 }
 
-export const postPhase: Phase<PhaseContext, PhaseId> = {
+export const postPhase: InstallPhase = {
   id: "post",
   label: "pós-instalação",
+  weight: 3,
   async run(context) {
     await startDatabase(context);
     await setTemporaryRootPassword(context);

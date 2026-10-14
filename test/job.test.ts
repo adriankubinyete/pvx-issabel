@@ -3,7 +3,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { createJobs, jobsDir, logsDir, readLogs } from "@pvx/core";
 import { runSession, type Session } from "@pvx/testing";
-import { STORE_KEY, type NetinstallProgress } from "../src/state.ts";
+import type { PhasesState } from "@pvx/sdk";
+import { JOB_NAME } from "../src/state.ts";
 import { FIXTURE, restoreHost, SECRETS, SQL_SECRET, stateDirOf, until, useDetachedJobs, WEB_SECRET } from "./host.ts";
 
 let session: Session;
@@ -15,7 +16,7 @@ afterEach(restoreHost);
 
 const jobs = () => createJobs("issabel");
 const ended = () => until(() => jobs().status("netinstall"), (status) => status.state !== "running", 20_000);
-const progressOf = () => JSON.parse(readFileSync(join(stateDirOf(session.home), "state.json"), "utf8")).progress as NetinstallProgress;
+const phasesOf = () => JSON.parse(readFileSync(join(stateDirOf(session.home), "state.json"), "utf8"))[`phases:${JOB_NAME}`] as PhasesState;
 const everyFile = (dir: string): string[] => (existsSync(dir) ? readdirSync(dir, { recursive: true, withFileTypes: true }).filter((entry) => entry.isFile()).map((entry) => join(entry.parentPath, entry.name)) : []);
 
 describe("starting the install from the CLI", () => {
@@ -29,7 +30,7 @@ describe("starting the install from the CLI", () => {
     expect(result.text).toContain("instalação concluída");
     const status = await jobs().status("netinstall");
     expect(status).toMatchObject({ state: "done", exit: 0 });
-    expect(progressOf().phases.map((phase) => phase.state)).toEqual(["done", "done", "done", "done", "done", "done", "done", "done", "done", "skipped"]);
+    expect(phasesOf().phases.map((phase) => phase.state)).toEqual(["done", "done", "done", "done", "done", "done", "done", "done", "done", "skipped"]);
   }, 30_000);
 
   test("without --follow it says how to follow, and a second start is refused while it runs", async () => {
@@ -133,8 +134,8 @@ describe("the job lifecycle: failure, status, resume, stop", () => {
     expect(resumed.text).not.toContain("$ dnf install -y epel-release");
     expect(resumed.text).toContain("fase banco do IssabelPBX: concluída");
     expect((await jobs().status("netinstall")).state).toBe("done");
-    expect(progressOf().phases.map((phase) => phase.state)).toEqual(["done", "done", "done", "done", "done", "done", "done", "done", "done", "skipped"]);
-    expect(progressOf().error).toBeUndefined();
+    expect(phasesOf().phases.map((phase) => phase.state)).toEqual(["done", "done", "done", "done", "done", "done", "done", "done", "done", "skipped"]);
+    expect(phasesOf().failure).toBeUndefined();
   }, 40_000);
 
   test("resume with no earlier install says so", async () => {
@@ -162,7 +163,6 @@ describe("the job lifecycle: failure, status, resume, stop", () => {
     expect(check.lines.map((line) => line.text.split(":")[0])).toEqual(["root", "sistema", "rede", "memória", "instalação anterior"]);
     expect((await session.run("issabel netinstall reboot", { confirmed: true })).text).toContain("não há reinício agendado");
     expect((await session.run("issabel netinstall postpone")).text).toContain("não há reinício agendado");
-    expect(STORE_KEY.progress).toBe("progress");
   });
 
   test("the reboot countdown is answered from another process: postpone ends the job done, with the phase noted", async () => {
@@ -171,7 +171,7 @@ describe("the job lifecycle: failure, status, resume, stop", () => {
     await until(() => Promise.resolve(existsReboot()), Boolean, 5000);
     expect((await session.run("issabel netinstall postpone")).text).toContain("reinício adiado");
     expect((await ended()).state).toBe("done");
-    expect(progressOf().phases.at(-1)).toMatchObject({ state: "done", detail: "adiado" });
+    expect(phasesOf().phases.at(-1)).toMatchObject({ state: "done", detail: "adiado" });
   }, 40_000);
 
   const existsReboot = () => JSON.parse(readFileSync(join(stateDirOf(session.home), "state.json"), "utf8")).reboot !== undefined;

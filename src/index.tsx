@@ -3,18 +3,16 @@
 import type { ModuleFactory } from "@pvx/sdk";
 import { installedCapability } from "./health/prove.ts";
 import { createCommands } from "./commands/index.ts";
-import { createQueries } from "./health/queries.ts";
-import type { SystemOverrides } from "./system.ts";
+import { queries } from "./health/queries.ts";
 import { issabelPage } from "./page/index.tsx";
 
 const HUB_TAB_ORDER = 40;
 
-/** `overrides` is how the tests give the module a fake machine. Production uses `makeFactory()` with none. */
-export const makeFactory = (overrides: SystemOverrides = {}): ModuleFactory => (sdk) => ({
-  commands: createCommands(overrides),
+const factory: ModuleFactory = (sdk) => ({
+  commands: createCommands(sdk),
   capabilities: [installedCapability(sdk.proof)],
-  queries: createQueries(overrides),
+  queries,
   pages: { issabel: { title: "Issabel", render: issabelPage(sdk), tab: { label: "Issabel", order: HUB_TAB_ORDER } } },
 });
 
-export default makeFactory();
+export default factory;

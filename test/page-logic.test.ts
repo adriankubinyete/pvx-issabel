@@ -3,8 +3,8 @@ import { newCredentials } from "../src/credentials.ts";
 import { DEFAULT_OPTIONS } from "../src/options.ts";
 import { clock, dateTime, fit } from "../src/page/layout.ts";
 import { rebootStatus, shareText, verificationSummary } from "../src/page/outcome.ts";
-import { cellsOf, packageDetail, stepsOf } from "../src/page/rows.ts";
-import { donePackages, failedAtDatabase, installing, NOW } from "./samples.ts";
+import { cellsOf, packageDetail, runningLabelOf, withPackageCount } from "../src/page/rows.ts";
+import { donePackages, installing, NOW } from "./samples.ts";
 import { PASSWORDS } from "./fake.ts";
 
 describe("clock and text", () => {
@@ -44,13 +44,21 @@ describe("the package wall", () => {
 });
 
 describe("the phases as steps", () => {
-  test("labels, states, the package count and the elapsed time", () => {
-    const steps = stepsOf(installing(), NOW);
-    expect(steps.map((step) => step.label)).toEqual(["repositórios", "preparo do sistema", "PHP 7.4 (Remi)", "pacotes", "pós-instalação", "banco do IssabelPBX", "painel do operador", "fuso horário", "senhas", "reiniciar"]);
-    expect(steps.find((step) => step.id === "packages")).toMatchObject({ state: "running", detail: "96/181" });
-    expect(steps.find((step) => step.id === "repos")).toMatchObject({ state: "done", elapsedMs: 60_000 });
-    expect(steps.find((step) => step.id === "reboot")).toMatchObject({ state: "pending", elapsedMs: undefined });
-    expect(stepsOf(failedAtDatabase(), NOW).find((step) => step.id === "database")!.state).toBe("failed");
+  test("the package step shows the count of the wall, the others keep their detail", () => {
+    const steps = withPackageCount(
+      [
+        { id: "repos", label: "repositórios", state: "done", detail: "ok" },
+        { id: "packages", label: "pacotes", state: "running" },
+        { id: "post", label: "pós-instalação", state: "pending" },
+      ],
+      installing().packages,
+    );
+    expect(steps.map((step) => step.detail)).toEqual(["ok", "96/181", undefined]);
+    expect(withPackageCount([{ id: "packages", label: "pacotes", state: "pending" }], installing().packages)[0]!.detail).toBeUndefined();
+  });
+  test("the line of what runs now is the phase that is running", () => {
+    expect(runningLabelOf(installing().phases)).toBe("pacotes");
+    expect(runningLabelOf({ ...installing().phases, phases: [] })).toBe("—");
   });
 });
 

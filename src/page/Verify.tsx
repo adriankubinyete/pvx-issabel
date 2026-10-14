@@ -40,7 +40,7 @@ export interface VerifyProps {
 const isFinished = (results: Check[]) => results.length >= CHECK_IDS.length || (results.at(-1)?.id === "root" && results.at(-1)?.level === "error");
 
 export const makeVerify = (ui: SdkUi) => {
-  const { h, Panel, Text, Steps, useState, useEffect, useQuery, useKey, useBack } = ui;
+  const { h, Panel, Notice, Steps, useState, useEffect, useQuery, useKey, useBack } = ui;
 
   function RetryKey({ onRetry }: { onRetry: () => void }) {
     useKey("r", "refazer", onRetry);
@@ -75,7 +75,7 @@ export const makeVerify = (ui: SdkUi) => {
         {stuck ? <RetryKey onRetry={onRetry} /> : null}
         {stuck && blockedByPreviousOnly(results) ? <ForceKey onForce={onForce} /> : null}
         <Steps items={CHECK_IDS.map((id, index) => stepOf(id, index, results, results.length))} />
-        {blocking.map((problem) => <Text key={problem} tone="error">{`✗ ${problem}`}</Text>)}
+        {blocking.map((problem) => <Notice key={problem} level="error">{problem}</Notice>)}
       </Panel>
     );
   }

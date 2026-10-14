@@ -30,6 +30,8 @@ export interface PreflightDeps {
   force: boolean;
 }
 
+export const realIsRoot = (): boolean => process.getuid?.() === 0;
+
 export const MIN_OS_MAJOR = 8;
 const NETWORK_TIMEOUT_S = 15;
 const NETWORK_RETRIES = 2;
