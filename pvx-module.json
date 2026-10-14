@@ -1,0 +1,72 @@
+{
+  "id": "issabel",
+  "version": "0.1.0",
+  "entry": "src/index.tsx",
+  "pvx": ">=0.0.1",
+  "os": [
+    "linux"
+  ],
+  "distro": [
+    "rhel"
+  ],
+  "permissions": {
+    "exec": [
+      "dnf",
+      "rpm",
+      "curl",
+      "systemctl",
+      "setenforce",
+      "groupadd",
+      "useradd",
+      "sysctl",
+      "mysql",
+      "sqlite3",
+      "timedatectl",
+      "hwclock",
+      "ln",
+      "rm",
+      "mkdir",
+      "chown",
+      "chmod",
+      "cp",
+      "mv",
+      "amportal",
+      "issabel-admin-passwords",
+      "create_fop2_manager_user.pl",
+      "install_amp",
+      "firewall-cmd",
+      "reboot",
+      "hostname",
+      "asterisk"
+    ],
+    "fs": [
+      "/etc/os-release",
+      "/etc/issabel.conf",
+      "/etc/passwd",
+      "/proc/meminfo",
+      "/usr/local/fop2/",
+      "rw:/etc/sysctl.conf",
+      "rw:/etc/selinux/config",
+      "rw:/etc/php.ini",
+      "rw:$PVX_HOME/modules/issabel/state/"
+    ]
+  },
+  "contributes": {
+    "commands": [
+      "netinstall",
+      "netinstall run",
+      "netinstall status",
+      "netinstall stop",
+      "netinstall resume",
+      "netinstall check",
+      "netinstall reboot",
+      "netinstall postpone"
+    ],
+    "pages": [
+      "issabel"
+    ],
+    "capabilities": [
+      "issabel.installed"
+    ]
+  }
+}
