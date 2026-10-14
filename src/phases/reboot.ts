@@ -41,4 +41,4 @@ export const rebootPhase: InstallPhase = {
 export const rebootRequested = (state: PhasesState | undefined): boolean => state?.phases.find((phase) => phase.id === REBOOT_PHASE)?.detail === REBOOTING_DETAIL;
 
 /** Runs after the runner has recorded the last phase as done. */
-export const rebootNow = (context: PhaseContext) => context.shell.run("reboot", []);
+export const rebootNow = (context: Pick<PhaseContext, "shell">) => context.shell.run("reboot", []);

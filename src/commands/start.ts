@@ -2,7 +2,7 @@
 import type { CommandCtx, CommandDef } from "@pvx/sdk";
 import { JOB_NAME } from "../state.ts";
 import { OPTION_ARGS, jobLine, passwordOrGenerated, readOptions } from "../options.ts";
-import { blockingProblems, realIsRoot, runChecks, warnings } from "../preflight.ts";
+import { blockingProblems, runChecks, warnings } from "../preflight.ts";
 import { ALREADY_RUNNING, FIX, NO_RUN_TO_RESUME } from "../texts.ts";
 import { FOLLOW_ARG, followOrExplain, isRunning, printCheck, startJob } from "./context.ts";
 
@@ -18,7 +18,7 @@ async function startInstall(ctx: CommandCtx): Promise<void> {
     ctx.out.error(ALREADY_RUNNING);
     return;
   }
-  const checks = await runChecks({ exec: ctx.exec, fs: ctx.fs, isRoot: realIsRoot, force: parsed.options.force }, (check) => printCheck(ctx, check));
+  const checks = await runChecks({ exec: ctx.exec, fs: ctx.fs, isRoot: ctx.isRoot, force: parsed.options.force }, (check) => printCheck(ctx, check));
   if (blockingProblems(checks).length) return;
   warnings(checks).forEach((warning) => ctx.out.warning(warning));
   const secrets = { "sql-password": passwordOrGenerated(ctx.option("sql-password")), "web-password": passwordOrGenerated(ctx.option("web-password")) };

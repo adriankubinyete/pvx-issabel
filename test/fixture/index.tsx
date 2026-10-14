@@ -5,8 +5,8 @@
 //   ISSABEL_FAKE_DELAY_MS   slows each fake command down, to watch the install while it runs
 //   ISSABEL_FAKE_FAIL_AT    a program that fails with "boom: fake failure" (e.g. install_amp)
 //   ISSABEL_FAKE_PRESENT    "1": an Issabel is already on the machine (the `previous` check fails)
-import type { CommandCtx, CommandDef, ModuleDef, ModuleFactory, ModuleFs, ModuleQuery, ReadCtx, Sdk } from "@pvx/sdk";
-import { createShell } from "@pvx/core";
+import type { CommandCtx, ModuleFactory } from "@pvx/sdk";
+import { onFakeMachine } from "@pvx/testing";
 import factory from "../../src/index.tsx";
 import { stateDir } from "../../src/paths.ts";
 import type { Call, Rule } from "../fake.ts";
@@ -21,53 +21,19 @@ const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, 
 // Read per call too: each test has its own PVX_HOME.
 const isReal = (path: string) => path.startsWith(`${stateDir()}/`);
 
-// The checks ask the process for its uid; the Mac that runs the tests is not root.
-process.getuid = () => 0;
-
 /** The Mac running the tests is not a central: asterisk is absent (unless asked), the network answers, the memory is plenty. */
 const rules: Rule[] = [
   failing((call: Call) => call.cmd === "asterisk" && !present(), { code: 127 }),
   failing((call: Call) => failAt() !== undefined && call.cmd === failAt(), { code: 1, lines: ["boom: fake failure"] }),
 ];
-const system = fakeSystem({ rules, files: { "/proc/meminfo": "MemTotal: 4000000 kB\nSwapTotal: 1000000 kB\n" } });
+const system = fakeSystem({ rules, files: { "/proc/meminfo": "MemTotal: 4000000 kB\nSwapTotal: 1000000 kB\n" }, isRoot: true });
 
-const exec: CommandCtx["exec"] = async (cmd, args = [], opts) => {
+const execNow = system.exec;
+const slowExec: CommandCtx["exec"] = async (cmd, args = [], opts) => {
   if (delayMs()) await wait(delayMs());
-  return system.exec(cmd, args, opts);
+  return execNow(cmd, args, opts);
 };
+system.exec = slowExec;
 
-type ReadFs = Pick<ModuleFs, "read" | "exists" | "list">;
-
-const readFsOf = (real: ReadFs): ReadFs => ({
-  read: (path) => (isReal(path) ? real.read(path) : system.fs.read(path)),
-  exists: (path) => (isReal(path) ? real.exists(path) : system.fs.exists(path)),
-  list: (path) => system.fs.list(path),
-});
-
-const commandFsOf = (real: ModuleFs): ModuleFs => ({
-  ...readFsOf(real),
-  write: (path, data, opts) => (isReal(path) ? real.write(path, data, opts) : system.fs.write(path, data, opts)),
-  remove: (path) => (isReal(path) ? real.remove(path) : system.fs.remove(path)),
-  append: (path, text) => system.fs.append(path, text),
-});
-
-const onMachine = (ctx: CommandCtx): CommandCtx => ({ ...ctx, exec, shell: createShell(exec), fs: commandFsOf(ctx.fs) });
-const readOnMachine = (ctx: ReadCtx): ReadCtx => ({ ...ctx, exec, fs: readFsOf(ctx.fs) });
-
-const commandsOnMachine = (commands: Record<string, CommandDef>): Record<string, CommandDef> =>
-  Object.fromEntries(Object.entries(commands).map(([name, command]) => [name, { ...command, run: (ctx: CommandCtx) => command.run(onMachine(ctx)) }]));
-
-const queriesOnMachine = (queries: Record<string, ModuleQuery>): Record<string, ModuleQuery> =>
-  Object.fromEntries(
-    Object.entries(queries).map(([name, query]) => [name, function (this: ReadCtx, ...args: Parameters<ModuleQuery>) { return query.apply(readOnMachine(this), args); } as ModuleQuery]),
-  );
-
-const onFakeMachine = (module: ModuleDef): ModuleDef => ({
-  ...module,
-  commands: commandsOnMachine(module.commands ?? {}),
-  queries: queriesOnMachine(module.queries ?? {}),
-  capabilities: module.capabilities?.map((capability) => ({ ...capability, prove: (ctx: ReadCtx) => capability.prove(readOnMachine(ctx)) })),
-});
-
-const fixture: ModuleFactory = (sdk: Sdk) => onFakeMachine(factory(sdk));
+const fixture: ModuleFactory = onFakeMachine(factory, system, { real: isReal });
 export default fixture;

@@ -3,7 +3,7 @@
 import type { ModuleQuery, PackageProgress, ReadCtx } from "@pvx/sdk";
 import { parseCredentials, type Credentials } from "../credentials.ts";
 import { STORE_KEY, type InstallState, type RebootPlan } from "../state.ts";
-import { CHECK_IDS, checkOne, issabelPresent, realIsRoot, type Check, type CheckId } from "../preflight.ts";
+import { CHECK_IDS, checkOne, issabelPresent, type Check, type CheckId } from "../preflight.ts";
 import { isRhelLike, parseOsRelease, systemName } from "../text-edits.ts";
 
 export const QUERY_CHECK = "issabel.check";
@@ -47,7 +47,7 @@ export const credentialsQuery: ModuleQuery = async function (this: ReadCtx): Pro
 /** `issabel.check <id> [force]`: one check, so the page can show each with its own spinner. */
 const checkQuery: ModuleQuery = async function (this: ReadCtx, _name, id, force) {
   if (!isCheckId(id)) throw new Error(`verificação desconhecida: ${String(id)}`);
-  return checkOne(id, { exec: this.exec, fs: this.fs, isRoot: realIsRoot, force: force === true }) satisfies Promise<Check>;
+  return checkOne(id, { exec: this.exec, fs: this.fs, isRoot: this.isRoot, force: force === true }) satisfies Promise<Check>;
 };
 
 const centralQuery: ModuleQuery = async function (this: ReadCtx): Promise<Central> {

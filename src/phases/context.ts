@@ -1,8 +1,7 @@
 // What every phase receives, and the small helpers more than one phase uses.
-import type { ModuleFs, PhaseOutcome, Shell, Store } from "@pvx/sdk";
+import type { ErrorsKit, ModuleFs, PhaseOutcome, Shell, Store } from "@pvx/sdk";
 import type { Credentials } from "../credentials.ts";
 import type { Say } from "../exec.ts";
-import { stepError } from "../exec.ts";
 import type { PackageWall } from "../package-wall.ts";
 import type { RunOptions } from "../state.ts";
 
@@ -28,8 +27,11 @@ export interface PhaseContext {
   /** Never logged, never in the store. */
   passwords: Passwords;
   credentials: CredentialsFile;
-  /** `ctx.shell` that also writes the job log. */
-  shell: Shell;
+  /** `ctx.shell.echoing`: also writes the job log. */
+  shell: Pick<Shell, "run" | "must" | "ok">;
+  errors: ErrorsKit;
+  /** The progress (0 to 1) of the phase that is running, for the global bar. */
+  progress(fraction: number): void;
   fs: ModuleFs;
   store: Store;
   say: Say;
@@ -38,6 +40,9 @@ export interface PhaseContext {
   now(): number;
   sleep(ms: number): Promise<void>;
 }
+
+/** What the phases share; each phase also gets the `progress` of its own handle (see `phaseDefsOf`). */
+export type BaseContext = Omit<PhaseContext, "progress">;
 
 /** A phase of the install: `ctx.phases` runs it as `{ id, label, weight, run }` over the context (see `phaseDefsOf`). */
 export interface InstallPhase {
@@ -55,7 +60,10 @@ export const SHORT_TIMEOUT_MS = 5 * MINUTE_MS;
 
 /** Runs one `dnf install -y` and feeds its output to the package progress. Returns whether it worked. */
 export async function dnfInstall(context: PhaseContext, names: string[]): Promise<boolean> {
-  const onLine = (line: string) => context.packages.feed(line);
+  const onLine = (line: string) => {
+    context.packages.feed(line);
+    context.progress(context.packages.fraction());
+  };
   const result = await context.shell.run("dnf", ["install", "-y", ...names], { timeoutMs: PACKAGE_TIMEOUT_MS, onLine });
   context.packages.endRun(result.code === 0);
   return result.code === 0;
@@ -68,7 +76,7 @@ export async function installOrFail(context: PhaseContext, names: string[]): Pro
   const failed: string[] = [];
   for (const name of names) if (!(await dnfInstall(context, [name]))) failed.push(name);
   failed.forEach((name) => context.packages.fail(name));
-  if (failed.length) throw stepError(`falha ao instalar pacote(s): ${failed.join(", ")}`, `dnf install -y ${failed.join(" ")}`, 1, [`No match or failure for: ${failed.join(", ")}`]);
+  if (failed.length) throw context.errors.stepError(`falha ao instalar pacote(s): ${failed.join(", ")}`, `dnf install -y ${failed.join(" ")}`, 1, [`No match or failure for: ${failed.join(", ")}`]);
 }
 
 /** A step whose failure is worth a warning, not a stop. */

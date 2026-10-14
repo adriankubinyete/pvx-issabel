@@ -1,9 +1,8 @@
 // What the finished screens say: the text that is copied, the verification recap and the restart status. Pure.
-import type { PhaseRecord, PhasesState } from "@pvx/sdk";
 import type { Credentials } from "../credentials.ts";
 import { CHECK_LABEL, type Check, type CheckId } from "../preflight.ts";
 import { ADDON_LABEL } from "../packages.ts";
-import { REBOOT_PHASE, type RebootPlan } from "../state.ts";
+import type { RebootPlan } from "../state.ts";
 import { clock, dateTime, timeOfDay } from "./layout.ts";
 
 export interface ShareInput {
@@ -64,8 +63,3 @@ export function rebootStatus(plan: RebootPlan | undefined, willReboot: boolean, 
   if (plan.choice === "now" || now >= plan.at) return { text: "reiniciando a central…", tone: "info", canAnswer: false };
   return { text: `▲ reiniciando em ${clock(plan.at - now)}`, tone: "warn", canAnswer: true };
 }
-
-const isFinished = (phase: PhaseRecord) => phase.state === "done" || phase.state === "skipped";
-
-/** Everything but the restart is done: the done screen shows during the countdown, which is the last phase still running. */
-export const isInstalled = (state: PhasesState): boolean => state.phases.filter((phase) => phase.id !== REBOOT_PHASE).every(isFinished);

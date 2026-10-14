@@ -26,11 +26,9 @@ export interface Check {
 export interface PreflightDeps {
   exec: ExecFn;
   fs: FsRead;
-  isRoot: () => boolean;
+  isRoot: boolean;
   force: boolean;
 }
-
-export const realIsRoot = (): boolean => process.getuid?.() === 0;
 
 export const MIN_OS_MAJOR = 8;
 const NETWORK_TIMEOUT_S = 15;
@@ -45,7 +43,7 @@ const ISSABEL_CONF = "/etc/issabel.conf";
 const ok = (id: CheckId, detail?: string): Check => ({ id, level: "ok", detail });
 
 function checkRoot({ isRoot }: PreflightDeps): Check {
-  if (isRoot()) return ok("root");
+  if (isRoot) return ok("root");
   return { id: "root", level: "error", message: "o netinstall precisa rodar como root (sudo)." };
 }
 

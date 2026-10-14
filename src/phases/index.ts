@@ -9,11 +9,11 @@ import { preparePhase } from "./prepare.ts";
 import { rebootPhase } from "./reboot.ts";
 import { reposPhase } from "./repos.ts";
 import { timezonePhase } from "./timezone.ts";
-import type { InstallPhase, PhaseContext } from "./context.ts";
+import type { BaseContext, InstallPhase } from "./context.ts";
 
 /** The install, in order. */
 export const PHASES: InstallPhase[] = [reposPhase, preparePhase, phpPhase, packagesPhase, postPhase, databasePhase, panelPhase, timezonePhase, passwordsPhase, rebootPhase];
 
 /** The phases as `ctx.phases.run` takes them, each one running over `context`. */
-export const phaseDefsOf = (context: PhaseContext): PhaseDef[] =>
-  PHASES.map((phase) => ({ id: phase.id, label: phase.label, weight: phase.weight, run: () => phase.run(context) }));
+export const phaseDefsOf = (context: BaseContext): PhaseDef[] =>
+  PHASES.map((phase) => ({ id: phase.id, label: phase.label, weight: phase.weight, run: (handle) => phase.run({ ...context, progress: handle.progress }) }));

@@ -5,14 +5,14 @@ import { fakeSystem, failing, HEALTHY_OS_RELEASE, lineOf, type FakeOptions } fro
 const GOOD_MEMINFO = "MemTotal: 4000000 kB\nSwapTotal: 1000000 kB\n";
 const depsOf = (options: FakeOptions = {}, extra: Partial<PreflightDeps> = {}) => {
   const system = fakeSystem({ ...options, files: { "/proc/meminfo": GOOD_MEMINFO, ...options.files } });
-  const deps: PreflightDeps = { exec: system.exec, fs: system.fs, isRoot: () => true, force: false, ...extra };
+  const deps: PreflightDeps = { exec: system.exec, fs: system.fs, isRoot: true, force: false, ...extra };
   return { system, deps };
 };
 
 describe("each check", () => {
   test("root", async () => {
     expect((await checkOne("root", depsOf().deps)).level).toBe("ok");
-    expect(await checkOne("root", depsOf({}, { isRoot: () => false }).deps)).toMatchObject({ level: "error", message: expect.stringContaining("root") });
+    expect(await checkOne("root", depsOf({}, { isRoot: false }).deps)).toMatchObject({ level: "error", message: expect.stringContaining("root") });
   });
   test("Rocky 8.10 passes and names the system", async () => {
     expect(await checkOne("system", depsOf().deps)).toMatchObject({ level: "ok", detail: "Rocky Linux 8.10" });
@@ -72,7 +72,7 @@ describe("runChecks", () => {
     expect(blockingProblems(checks)).toEqual([]);
   });
   test("without root nothing else runs (not even the network)", async () => {
-    const { system, deps } = depsOf(clean, { isRoot: () => false });
+    const { system, deps } = depsOf(clean, { isRoot: false });
     const checks = await runChecks(deps);
     expect(checks.map((check) => check.id)).toEqual(["root"]);
     expect(system.calls.map(lineOf)).toEqual([]);

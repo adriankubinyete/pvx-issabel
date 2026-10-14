@@ -30,7 +30,7 @@ describe("the manifest", () => {
     await run(fakeSystem({ files: { "/usr/local/fop2/create_fop2_manager_user.pl": "x" } }), { ...OPTIONS, reboot: true });
     await run(fakeSystem({ rules: [failing((call) => call.cmd === "timedatectl")] }));
     const probe = fakeSystem();
-    for (const id of ["root", "system", "network", "memory", "previous"] as const) await checkOne(id, { exec: probe.exec, fs: probe.fs, isRoot: () => true, force: false });
+    for (const id of ["root", "system", "network", "memory", "previous"] as const) await checkOne(id, { exec: probe.exec, fs: probe.fs, isRoot: true, force: false });
     probe.calls.forEach((call) => used.add(call.cmd));
     // the capability and the central query run the probes of the read-only context
     const def = build();

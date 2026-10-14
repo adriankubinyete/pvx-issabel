@@ -3,7 +3,8 @@ import { executeInstall } from "../src/install.ts";
 import type { PackageProgress, PhasesState } from "@pvx/sdk";
 import { causeOf } from "../src/failure.ts";
 import { JOB_NAME, STORE_KEY } from "../src/state.ts";
-import { fakeSystem, failing, lineOf, OPTIONS, PASSWORDS, type FakeSystem } from "./fake.ts";
+import { fakeSdk } from "@pvx/testing";
+import { fakeSystem, failing, lineOf, OPTIONS, PASSWORDS, type FakeSystem, type Rule } from "./fake.ts";
 
 const PHASES_KEY = `phases:${JOB_NAME}`;
 const fresh = (system: FakeSystem, options = OPTIONS) => executeInstall(system.ctx, system.env, { mode: "fresh", options, passwords: PASSWORDS });
@@ -12,6 +13,12 @@ const phasesOf = (system: FakeSystem) => system.store.get<PhasesState>(PHASES_KE
 const packagesOf = (system: FakeSystem) => system.store.get<PackageProgress>(STORE_KEY.packages)!;
 const stateOf = (system: FakeSystem, id: string) => phasesOf(system).phases.find((phase) => phase.id === id)!.state;
 const said = (system: FakeSystem, kind: string, text: string) => system.ctx.lines.some((line) => line.kind === kind && line.text.includes(text));
+/** A rule that never answers: it reads the overall progress each time dnf starts. */
+const probeProgress = (system: () => FakeSystem, seen: number[]): Rule => (call) => {
+  const state = system().store.get<PhasesState>(PHASES_KEY);
+  if (call.cmd === "dnf" && call.args[0] === "install" && state) seen.push(fakeSdk().phases.progress(state));
+  return undefined;
+};
 const dnfInstalls = (system: FakeSystem) => system.calls.filter((call) => call.cmd === "dnf" && call.args[0] === "install");
 
 describe("a clean install", () => {
@@ -59,6 +66,16 @@ describe("a clean install", () => {
     expect(packages.total).toBe(packages.done.length);
     expect(packages.failed).toEqual([]);
     expect(packages.running).toEqual([]);
+  });
+
+  test("the global bar advances during the packages phase", async () => {
+    const seen: number[] = [];
+    const system = fakeSystem({ rules: [probeProgress(() => system, seen)] });
+    await fresh(system);
+    // The three phases before `packages` weigh 8%: each dnf batch after the first starts with the bar further along.
+    expect(seen.length).toBeGreaterThan(1);
+    expect(seen.at(-1)).toBeGreaterThan(0.2);
+    expect(seen).toEqual([...seen].sort((a, b) => a - b));
   });
 
   test("the timezone is set with timedatectl, and falls back to the symlink", async () => {

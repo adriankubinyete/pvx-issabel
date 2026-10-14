@@ -13,9 +13,17 @@ export const checkLine = (check: Check): OutLine => ({
   text: [CHECK_LABEL[check.id], check.detail, check.level === "ok" ? undefined : check.message].filter(Boolean).join(": "),
 });
 
-export function statusLines(state: PhasesState, packages: PackageProgress | undefined, install: InstallState | undefined): string[] {
+/** What `status` knows besides the state: the overall progress (0 to 1) and whether the install is finished (the restart aside). */
+export interface StatusFacts {
+  progress: number;
+  installed: boolean;
+}
+
+export function statusLines(state: PhasesState, packages: PackageProgress | undefined, install: InstallState | undefined, facts: StatusFacts): string[] {
   const lines = state.phases.map((phase) => `${MARK_BY_STATE[phase.state]} ${phase.label}: ${WORD_BY_STATE[phase.state]}${phase.detail ? ` (${phase.detail})` : ""}`);
   if (packages) lines.push(`pacotes: ${packages.done.length}/${packages.total} instalados, ${packages.failed.length} com falha`);
+  lines.push(`andamento: ${Math.round(facts.progress * 100)}%`);
+  if (facts.installed) lines.push("instalação concluída");
   const { failure } = state;
   if (failure) lines.push(`erro em ${phaseLabelOf(state, failure.phase)}: ${commandOf(failure)}`, `causa provável: ${causeOf(failure)}`);
   if (install?.credentialsFile) lines.push(`credenciais: ${install.credentialsFile}`);

@@ -13,6 +13,8 @@ export interface PackageWall {
   endRun(ok: boolean): void;
   /** A package the output did not name failed. */
   fail(name: string): void;
+  /** Share of the known packages that are done, 0 to 1. */
+  fraction(): number;
 }
 
 export function createPackageWall(store: Store, tracker: PackageTracker, now: () => number): PackageWall {
@@ -35,6 +37,10 @@ export function createPackageWall(store: Store, tracker: PackageTracker, now: ()
     fail(name) {
       tracker.fail(name);
       save();
+    },
+    fraction() {
+      const { done, total } = tracker.progress;
+      return total ? done.length / total : 0;
     },
   };
 }

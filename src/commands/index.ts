@@ -7,6 +7,6 @@ import { statusCommands } from "./status.ts";
 export const createCommands = (sdk: Sdk): Record<string, CommandDef> => ({
   ...startCommands,
   ...runCommands(sdk),
-  ...statusCommands,
+  ...statusCommands(sdk),
   ...controlCommands,
 });

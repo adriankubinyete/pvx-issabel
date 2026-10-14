@@ -38,6 +38,8 @@ export interface FakeOptions {
   store?: Record<string, unknown>;
   /** Packages a first run already installed. */
   installed?: Iterable<string>;
+  /** `ctx.isRoot`. Default: true. */
+  isRoot?: boolean;
 }
 
 /** One `fs.write` the install made, with the options it asked for (`mode`, `atomic`). */
@@ -62,7 +64,8 @@ export function fakeSystem(options: FakeOptions = {}): FakeSystem {
   const installed = new Set(options.installed);
   const rules = [...(options.rules ?? []), dnfRule(installed), hostnameRule];
   const files = { "/etc/os-release": HEALTHY_OS_RELEASE, "/etc/passwd": "root:x:0:0\n", ...options.files };
-  const host = fakeHost({ rules, files, store: options.store });
+  const clock = { now: 1_800_000_000_000 };
+  const host = fakeHost({ rules, files, store: options.store, clock, isRoot: options.isRoot });
   const writes: WriteRecord[] = [];
   const write = host.fs.write;
   host.fs.write = async (path, data, opts) => {
@@ -71,12 +74,11 @@ export function fakeSystem(options: FakeOptions = {}): FakeSystem {
   };
   const system: HostSystem = { ...host, exec: (cmd, args, opts) => host.exec(baseName(cmd), args, opts) };
   const ctx = fakeCommandCtx(system);
-  const clock = { now: 1_800_000_000_000 };
   const env: InstallEnv = {
     paths: { assets: "/module/assets", stateDir: "/state" },
-    signal: new AbortController().signal,
     packages: fakeSdk().packages,
-    now: () => clock.now,
+    errors: fakeSdk().errors,
+    now: system.now,
     sleep: async (ms) => void (clock.now += ms),
   };
   const transcript = () => [...ctx.lines.map((line) => line.text), ...ctx.jobLines].join("\n");

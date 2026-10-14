@@ -2,7 +2,6 @@
 // `--defaults-extra-file` (which must be the first option), removed right after.
 import { TEMP_MYSQL_PASSWORD } from "../packages.ts";
 import type { ShellResult } from "@pvx/sdk";
-import { stepError } from "../exec.ts";
 import { SECRET_MODE } from "../credentials.ts";
 import type { PhaseContext } from "./context.ts";
 
@@ -25,7 +24,7 @@ export async function mysqlAsRoot(context: PhaseContext, sql: string, password?:
 
 const setRootPassword = (password: string) => `SET PASSWORD FOR 'root'@'localhost' = PASSWORD('${password}')`;
 
-const stepFailed = (what: string) => stepError(what, "mysql", 1, [what]);
+const stepFailed = (context: PhaseContext, what: string) => context.errors.stepError(what, "mysql", 1, [what]);
 
 /**
  * A new MariaDB lets root in through the unix socket without a password. This sets the temporary password; if it was already
@@ -35,7 +34,7 @@ export async function setTemporaryRootPassword(context: PhaseContext): Promise<v
   const first = await mysqlAsRoot(context, setRootPassword(TEMP_MYSQL_PASSWORD));
   if (first.code === 0) return;
   const already = await mysqlAsRoot(context, "SELECT 1", TEMP_MYSQL_PASSWORD);
-  if (already.code !== 0) throw stepFailed("falha ao definir a senha temporária do MySQL root");
+  if (already.code !== 0) throw stepFailed(context, "falha ao definir a senha temporária do MySQL root");
 }
 
 /** The IssabelPBX installer and `issabel-admin-passwords` expect an empty root password. A rerun finds it already empty. */
@@ -43,5 +42,5 @@ export async function clearRootPassword(context: PhaseContext): Promise<void> {
   const first = await mysqlAsRoot(context, setRootPassword(""), TEMP_MYSQL_PASSWORD);
   if (first.code === 0) return;
   const already = await mysqlAsRoot(context, "SELECT 1");
-  if (already.code !== 0) throw stepFailed("falha ao zerar a senha do MySQL root: as fases seguintes dependem dela vazia");
+  if (already.code !== 0) throw stepFailed(context, "falha ao zerar a senha do MySQL root: as fases seguintes dependem dela vazia");
 }

@@ -24,9 +24,7 @@ export function runCommands(sdk: Sdk): Record<string, CommandDef> {
       ctx.out.error(request);
       return;
     }
-    // A signal on every exec puts each program in its own process group: that is what lets `jobs.stop` kill them with the job.
-    const { signal } = new AbortController();
-    const outcome = await executeInstall(ctx, { paths: installPaths(), signal, packages: sdk.packages, now: Date.now, sleep }, request);
+    const outcome = await executeInstall(ctx, { paths: installPaths(), packages: sdk.packages, errors: sdk.errors, now: Date.now, sleep }, request);
     if (!outcome.ok && !outcome.failedPhase) ctx.out.error(messageOf(outcome.error));
   }
 

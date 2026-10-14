@@ -4,7 +4,7 @@ import { causeOf, commandOf, DEFAULT_CAUSE, likelyCause } from "../src/failure.t
 import { DEFAULT_OPTIONS, cliLine, generatePassword, jobLine, optionsFromAnswers, readOptions } from "../src/options.ts";
 import { PHASES } from "../src/phases/index.ts";
 import { checkLine, statusLines } from "../src/health/summary.ts";
-import { isInstalled } from "../src/page/outcome.ts";
+import { fakeSdk } from "@pvx/testing";
 import { isRhelLike, memTotalKb, parseOsRelease, passwdHasUser, systemName, versionMajor, withIpv6Guard, withPhpTimezone, withSelinuxDisabled } from "../src/text-edits.ts";
 
 const reader = (args: Record<string, string | boolean | undefined>) => ({
@@ -105,20 +105,22 @@ describe("the install phases", () => {
     expect(PHASES.map((phase) => phase.id)).toEqual(PHASE_IDS);
   });
   test("it is installed when everything but the restart is finished, even while the countdown runs", () => {
+    const { phases } = fakeSdk();
     const done = Object.fromEntries(PHASE_IDS.filter((id) => id !== "reboot").map((id) => [id, "done" as const]));
-    expect(isInstalled(stateOf({ ...done, reboot: "running" }))).toBe(true);
-    expect(isInstalled(stateOf({ ...done, passwords: "running" }))).toBe(false);
-    expect(isInstalled(stateOf({}))).toBe(false);
+    expect(phases.finished(stateOf({ ...done, reboot: "running" }), ["reboot"])).toBe(true);
+    expect(phases.finished(stateOf({ ...done, passwords: "running" }), ["reboot"])).toBe(false);
+    expect(phases.finished(stateOf({}), ["reboot"])).toBe(false);
   });
 });
 
 describe("status and check lines", () => {
   test("the phases, the packages and where it failed", () => {
     const state = { ...stateOf({ repos: "done", prepare: "failed" }), failure: { phase: "prepare", message: "x", command: "groupadd", output: [] } };
-    const lines = statusLines(state, { total: 3, done: [], running: [], failed: ["a"] }, undefined);
+    const lines = statusLines(state, { total: 3, done: [], running: [], failed: ["a"] }, undefined, { progress: 0.456, installed: false });
     expect(lines[0]).toBe("✓ repos: concluída");
     expect(lines[1]).toBe("✗ prepare: falhou");
     expect(lines).toContain("pacotes: 0/3 instalados, 1 com falha");
+    expect(lines).toContain("andamento: 46%");
     expect(lines).toContain("erro em prepare: groupadd");
     expect(lines.join("\n")).toContain("causa provável: ");
   });
